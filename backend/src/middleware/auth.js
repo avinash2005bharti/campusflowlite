@@ -1,0 +1,78 @@
+import jwt from 'jsonwebtoken';
+import env from '../config/env.js';
+import ApiError from '../utils/ApiError.js';
+import User from '../models/User.js';
+import Student from '../models/Student.js';
+import Teacher from '../models/Teacher.js';
+import MentorGroup from '../models/MentorGroup.js';
+
+export const auth = async (req, res, next) => {
+  try {
+    let token = null;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    }
+
+    if (!token) {
+      return next(ApiError.unauthenticated('Authorization token missing'));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
+    } catch (err) {
+      return next(ApiError.unauthenticated('Invalid or expired access token'));
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user || !user.isActive) {
+      return next(ApiError.unauthenticated('User account not found or deactivated'));
+    }
+
+    // Attach basic user info
+    req.user = {
+      _id: user._id,
+      id: user._id.toString(),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+      isTG: false,
+      teacherId: null,
+      studentId: null,
+      mentorGroupId: null,
+    };
+
+    // If TEACHER or HOD, check Teacher profile and TG mentor status
+    if (user.role === 'TEACHER' || user.role === 'HOD') {
+      const teacherProfile = await Teacher.findOne({ user: user._id });
+      if (teacherProfile) {
+        req.user.teacherId = teacherProfile._id.toString();
+
+        // Check if teacher leads an active MentorGroup
+        const activeGroup = await MentorGroup.findOne({ tg: teacherProfile._id, isActive: true });
+        if (activeGroup) {
+          req.user.isTG = true;
+          req.user.mentorGroupId = activeGroup._id.toString();
+        }
+      }
+    }
+
+    // If STUDENT, attach student profile
+    if (user.role === 'STUDENT') {
+      const studentProfile = await Student.findOne({ user: user._id });
+      if (studentProfile) {
+        req.user.studentId = studentProfile._id.toString();
+        req.user.mentorGroupId = studentProfile.mentorGroup ? studentProfile.mentorGroup.toString() : null;
+      }
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
+export default auth;

@@ -1,0 +1,65 @@
+import { z } from 'zod';
+
+const attachmentSchema = z.object({
+  fileId: z.string().min(1),
+  filePath: z.string().min(1),
+  name: z.string().min(1),
+  mimeType: z.string().min(1),
+  size: z.number().positive(),
+  uploadedAt: z.coerce.date().optional(),
+});
+
+export const createConsiderationSchema = z.object({
+  eventTitle: z.string().min(3, 'Event title must be at least 3 characters long').trim(),
+  eventType: z.enum(['HACKATHON', 'SPORTS', 'CULTURAL', 'COLLEGE_DUTY', 'OTHER']),
+  organizer: z.string().optional(),
+  venue: z.string().optional(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
+  requestedPeriods: z.number().int().min(1, 'Requested periods must be at least 1'),
+  selectedPeriods: z.array(z.string()).optional(),
+  periodTiming: z.string().optional(),
+  description: z.string().optional(),
+  attachments: z.array(attachmentSchema).min(1, 'At least one supporting document/certificate is required'),
+});
+
+export const tgReviewSchema = z.object({
+  decision: z.enum(['RECOMMEND', 'REJECT']),
+  remarks: z.string().optional().default(''),
+}).refine(
+  (data) => {
+    if (data.decision === 'REJECT') {
+      return (data.remarks || '').trim().length >= 5;
+    }
+    return true;
+  },
+  { message: 'Remarks of at least 5 characters are required when rejecting', path: ['remarks'] }
+);
+
+export const hodReviewSchema = z.object({
+  decision: z.enum(['APPROVE', 'REJECT']),
+  remarks: z.string().optional().default(''),
+  approvedPeriods: z.number().int().min(1).optional(),
+}).refine(
+  (data) => {
+    if (data.decision === 'REJECT') {
+      return (data.remarks || '').trim().length >= 5;
+    }
+    return true;
+  },
+  { message: 'Remarks of at least 5 characters are required when rejecting', path: ['remarks'] }
+).refine(
+  (data) => {
+    if (data.decision === 'APPROVE') {
+      return data.approvedPeriods !== undefined && data.approvedPeriods > 0;
+    }
+    return true;
+  },
+  { message: 'Approved periods must be specified when approving', path: ['approvedPeriods'] }
+);
+
+export default {
+  createConsiderationSchema,
+  tgReviewSchema,
+  hodReviewSchema,
+};
