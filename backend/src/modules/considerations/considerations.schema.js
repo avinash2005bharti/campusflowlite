@@ -20,7 +20,7 @@ export const createConsiderationSchema = z.object({
   selectedPeriods: z.array(z.string()).optional(),
   periodTiming: z.string().optional(),
   description: z.string().optional(),
-  attachments: z.array(attachmentSchema).min(1, 'At least one supporting document/certificate is required'),
+  attachments: z.array(attachmentSchema).optional().default([]),
 });
 
 export const tgReviewSchema = z.object({

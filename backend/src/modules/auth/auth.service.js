@@ -318,6 +318,36 @@ export const registerStudent = async ({
     enrollmentYear: parsedEnrollYear,
   });
 
+  // Auto-assign to active MentorGroup based on Section or Department
+  try {
+    const peer = await Student.findOne({
+      section: sec._id,
+      mentorGroup: { $ne: null },
+      _id: { $ne: student._id },
+    });
+    let assignedGroup = null;
+    if (peer?.mentorGroup) {
+      assignedGroup = await MentorGroup.findById(peer.mentorGroup);
+    }
+    if (!assignedGroup) {
+      assignedGroup = await MentorGroup.findOne({ department: dept._id, isActive: true });
+    }
+    if (!assignedGroup) {
+      assignedGroup = await MentorGroup.findOne({ isActive: true });
+    }
+    if (assignedGroup) {
+      student.mentorGroup = assignedGroup._id;
+      await student.save();
+      if (!assignedGroup.students.includes(student._id)) {
+        assignedGroup.students.push(student._id);
+        await assignedGroup.save();
+      }
+    }
+  } catch (err) {
+    // Non-fatal if mentor group auto-assign fails
+    console.warn('Auto-assigning student to mentor group notice:', err.message);
+  }
+
   return {
     message: 'Student account registered successfully! You can now sign in.',
     user: {

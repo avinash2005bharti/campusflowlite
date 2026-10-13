@@ -211,7 +211,7 @@ export default function HodDashboard() {
 
           <div className="my-2">
             <span className="text-3xl font-black text-rose-600 block leading-tight">
-              {pendingConsiderations.length || 1}
+              {pendingConsiderations.length}
             </span>
           </div>
 
@@ -248,12 +248,12 @@ export default function HodDashboard() {
 
           <div className="my-2">
             <span className="text-3xl font-black text-slate-900 block leading-tight">
-              {pendingLeaves.length || 1}
+              {pendingLeaves.length}
             </span>
           </div>
 
           <div className="text-[11px] text-slate-500 font-medium">
-            <span>{pendingLeaves.length || 1} In queue</span>
+            <span>{pendingLeaves.length} In queue</span>
           </div>
         </div>
 

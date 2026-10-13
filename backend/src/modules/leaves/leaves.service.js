@@ -15,6 +15,7 @@ import {
   rangesOverlap,
 } from '../../utils/dates.js';
 import { emitNotification, emitRequestUpdated, emitQueueChanged } from '../../sockets/emitters.js';
+import { resolveStudentTG } from '../considerations/considerations.service.js';
 
 export const resolveApprovalChain = (applicantRole) => {
   switch (applicantRole) {
@@ -81,12 +82,7 @@ export const createLeave = async (user, data) => {
     if (!student) throw ApiError.notFound('Student profile not found');
     studentId = student._id;
 
-    if (student.mentorGroup) {
-      const group = await MentorGroup.findById(student.mentorGroup);
-      if (group && group.isActive) {
-        tgTeacherId = group.tg;
-      }
-    }
+    tgTeacherId = await resolveStudentTG(student);
   } else if (applicantRole === 'TEACHER' || applicantRole === 'HOD') {
     const teacher = await Teacher.findOne({ user: user._id });
     if (!teacher) throw ApiError.notFound('Teacher profile not found');
@@ -254,11 +250,12 @@ export const getTGLeaveQueue = async (user, query) => {
 export const getHODLeaveQueue = async (query) => {
   const { page, limit, skip } = parsePagination(query);
 
-  // Student leaves recommended or escalated, PLUS Faculty leaves PENDING
+  // Student leaves recommended or escalated or unassigned, PLUS Faculty leaves PENDING
   const filter = {
     $or: [
       { applicantRole: 'STUDENT', status: 'RECOMMENDED_BY_TG' },
       { applicantRole: 'STUDENT', status: 'PENDING', escalated: true },
+      { applicantRole: 'STUDENT', status: 'PENDING', tg: null },
       { applicantRole: 'TEACHER', status: 'PENDING' },
     ],
   };
@@ -524,11 +521,13 @@ export const finalReviewLeave = async (id, user, { decision, remarks }) => {
     if (user.role !== 'HOD' && user.role !== 'ADMIN') {
       throw ApiError.forbidden('Only HOD or Admin can perform final review on student leave');
     }
-    // Must be RECOMMENDED_BY_TG or escalated
-    const isEligible = leave.status === 'RECOMMENDED_BY_TG' || (leave.status === 'PENDING' && leave.escalated === true);
+    // Must be RECOMMENDED_BY_TG, escalated, or unassigned TG
+    const isEligible =
+      leave.status === 'RECOMMENDED_BY_TG' ||
+      (leave.status === 'PENDING' && (leave.escalated === true || !leave.tg));
     if (!isEligible) {
       throw ApiError.invalidStateTransition(
-        `Final review on student leave requires 'RECOMMENDED_BY_TG' or escalated status. Current status: '${leave.status}'`
+        `Final review on student leave requires 'RECOMMENDED_BY_TG' or escalated/unassigned status. Current status: '${leave.status}'`
       );
     }
     newStatus = decision === 'APPROVE' ? 'APPROVED_BY_HOD' : 'REJECTED';

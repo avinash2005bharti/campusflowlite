@@ -65,7 +65,7 @@ describe('2. Leave Approval Chain Resolver (Section 7.2 & 7.3)', () => {
 });
 
 describe('3. Consideration Validation & Business Rules (Section 7.1)', () => {
-  it('should require at least 1 attachment for consideration request', () => {
+  it('should allow consideration request without attachments (attachments are optional)', () => {
     const validData = {
       eventTitle: 'Hackathon Grand Finale',
       eventType: 'HACKATHON',
@@ -84,8 +84,12 @@ describe('3. Consideration Validation & Business Rules (Section 7.1)', () => {
     };
     assert.doesNotThrow(() => createConsiderationSchema.parse(validData));
 
-    const invalidData = { ...validData, attachments: [] };
-    assert.throws(() => createConsiderationSchema.parse(invalidData));
+    const withoutAttachments = { ...validData, attachments: [] };
+    assert.doesNotThrow(() => createConsiderationSchema.parse(withoutAttachments));
+
+    const omittedAttachments = { ...validData };
+    delete omittedAttachments.attachments;
+    assert.doesNotThrow(() => createConsiderationSchema.parse(omittedAttachments));
   });
 
   it('should require min 5 chars remarks when TG rejects', () => {

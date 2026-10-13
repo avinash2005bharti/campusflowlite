@@ -70,7 +70,9 @@ export default function HodConsiderations() {
 
     let matchesStatus = true;
     if (filterMode === 'ACTION_NEEDED') {
-      matchesStatus = item.status === 'RECOMMENDED_BY_TG' || (item.status === 'PENDING' && item.escalated);
+      matchesStatus =
+        item.status === 'RECOMMENDED_BY_TG' ||
+        (item.status === 'PENDING' && (item.escalated || !item.tg));
     } else if (filterMode === 'APPROVED') {
       matchesStatus = item.status === 'APPROVED_BY_HOD';
     } else if (filterMode === 'REJECTED') {
@@ -206,7 +208,8 @@ export default function HodConsiderations() {
                 <TableBody>
                   {filteredItems.map((item) => {
                     const isActionNeeded =
-                      item.status === 'RECOMMENDED_BY_TG' || (item.status === 'PENDING' && item.escalated);
+                      item.status === 'RECOMMENDED_BY_TG' ||
+                      (item.status === 'PENDING' && (item.escalated || !item.tg));
 
                     return (
                       <TableRow
@@ -394,7 +397,8 @@ export default function HodConsiderations() {
               </div>
 
               {/* Action Trigger in Drawer */}
-              {(selectedItem.status === 'RECOMMENDED_BY_TG' || (selectedItem.status === 'PENDING' && selectedItem.escalated)) && (
+              {(selectedItem.status === 'RECOMMENDED_BY_TG' ||
+                (selectedItem.status === 'PENDING' && (selectedItem.escalated || !selectedItem.tg))) && (
                 <div className="pt-3 border-t border-slate-100">
                   <Button
                     variant="primary"

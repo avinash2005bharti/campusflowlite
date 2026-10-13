@@ -69,7 +69,9 @@ export default function HodLeaves() {
     let matchesStatus = true;
     if (filterMode === 'ACTION_NEEDED') {
       if (item.applicantRole === 'STUDENT') {
-        matchesStatus = item.status === 'RECOMMENDED_BY_TG' || (item.status === 'PENDING' && item.escalated);
+        matchesStatus =
+          item.status === 'RECOMMENDED_BY_TG' ||
+          (item.status === 'PENDING' && (item.escalated || !item.tg));
       } else {
         matchesStatus = item.status === 'PENDING';
       }
@@ -213,7 +215,8 @@ export default function HodLeaves() {
                   {filteredItems.map((item) => {
                     const isActionNeeded =
                       item.applicantRole === 'STUDENT'
-                        ? item.status === 'RECOMMENDED_BY_TG' || (item.status === 'PENDING' && item.escalated)
+                        ? item.status === 'RECOMMENDED_BY_TG' ||
+                          (item.status === 'PENDING' && (item.escalated || !item.tg))
                         : item.status === 'PENDING';
 
                     return (
@@ -382,7 +385,8 @@ export default function HodLeaves() {
               </div>
 
               {(selectedItem.applicantRole === 'STUDENT'
-                ? selectedItem.status === 'RECOMMENDED_BY_TG' || (selectedItem.status === 'PENDING' && selectedItem.escalated)
+                ? selectedItem.status === 'RECOMMENDED_BY_TG' ||
+                  (selectedItem.status === 'PENDING' && (selectedItem.escalated || !selectedItem.tg))
                 : selectedItem.status === 'PENDING') && (
                 <div className="pt-3 border-t border-slate-100">
                   <Button

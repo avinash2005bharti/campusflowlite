@@ -93,7 +93,7 @@ Standard Error Codes:
 
 | Method | Endpoint | Access | Description |
 |:---|:---|:---|:---|
-| `POST` | `/api/v1/considerations` | Student | Submit attendance consideration (requires `attachments >= 1`, dates `YYYY-MM-DD`, `requestedPeriods`) |
+| `POST` | `/api/v1/considerations` | Student | Submit attendance consideration (dates `YYYY-MM-DD`, `requestedPeriods`, optional `attachments`) |
 | `GET` | `/api/v1/considerations/mine` | Student | List own considerations |
 | `GET` | `/api/v1/considerations/tg-queue` | TG | Review queue for assigned mentees |
 | `GET` | `/api/v1/considerations/hod-queue` | HOD, Admin | HOD final review queue (`RECOMMENDED_BY_TG` + escalated) |

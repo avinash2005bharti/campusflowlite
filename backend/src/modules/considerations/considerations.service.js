@@ -10,6 +10,67 @@ import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js'
 import { isEndDateGteStartDate, rangesOverlap } from '../../utils/dates.js';
 import { emitNotification, emitRequestUpdated, emitQueueChanged } from '../../sockets/emitters.js';
 
+export const resolveStudentTG = async (student) => {
+  if (student.mentorGroup) {
+    const group = await MentorGroup.findById(student.mentorGroup);
+    if (group && group.isActive) {
+      return group.tg;
+    }
+  }
+
+  // 1. Peer in same section
+  if (student.section) {
+    const peer = await Student.findOne({
+      section: student.section,
+      mentorGroup: { $ne: null },
+      _id: { $ne: student._id },
+    });
+    if (peer?.mentorGroup) {
+      const group = await MentorGroup.findById(peer.mentorGroup);
+      if (group && group.isActive) {
+        student.mentorGroup = group._id;
+        await student.save();
+        if (!group.students.some((sId) => sId.toString() === student._id.toString())) {
+          group.students.push(student._id);
+          await group.save();
+        }
+        return group.tg;
+      }
+    }
+  }
+
+  // 2. Department active mentor group
+  if (student.department) {
+    const deptGroup = await MentorGroup.findOne({
+      department: student.department,
+      isActive: true,
+    });
+    if (deptGroup) {
+      student.mentorGroup = deptGroup._id;
+      await student.save();
+      if (!deptGroup.students.some((sId) => sId.toString() === student._id.toString())) {
+        deptGroup.students.push(student._id);
+        await deptGroup.save();
+      }
+      return deptGroup.tg;
+    }
+  }
+
+  // 3. Fallback to any active mentor group
+  const anyGroup = await MentorGroup.findOne({ isActive: true });
+  if (anyGroup) {
+    student.mentorGroup = anyGroup._id;
+    await student.save();
+    if (!anyGroup.students.some((sId) => sId.toString() === student._id.toString())) {
+      anyGroup.students.push(student._id);
+      await anyGroup.save();
+    }
+    return anyGroup.tg;
+  }
+
+  return null;
+};
+
 export const createConsideration = async (user, data) => {
   if (user.role !== 'STUDENT') {
     throw ApiError.forbidden('Only students can submit consideration requests');
@@ -39,14 +100,8 @@ export const createConsideration = async (user, data) => {
     }
   }
 
-  // Derive TG from student's active MentorGroup
-  let tgTeacherId = null;
-  if (student.mentorGroup) {
-    const group = await MentorGroup.findById(student.mentorGroup);
-    if (group && group.isActive) {
-      tgTeacherId = group.tg;
-    }
-  }
+  // Derive TG from student's active MentorGroup or auto-resolve
+  const tgTeacherId = await resolveStudentTG(student);
 
   const now = new Date();
   const request = await ConsiderationRequest.create({
@@ -62,7 +117,7 @@ export const createConsideration = async (user, data) => {
     selectedPeriods: data.selectedPeriods || [],
     periodTiming: data.periodTiming || '',
     description: data.description,
-    attachments: data.attachments,
+    attachments: data.attachments || [],
     status: 'PENDING',
     history: [
       {
@@ -187,6 +242,7 @@ export const getHODQueue = async (query) => {
     $or: [
       { status: 'RECOMMENDED_BY_TG' },
       { status: 'PENDING', escalated: true },
+      { status: 'PENDING', tg: null },
     ],
   };
 
@@ -398,11 +454,13 @@ export const hodReview = async (id, user, { decision, remarks, approvedPeriods }
     throw ApiError.forbidden('You cannot review your own request');
   }
 
-  // Allowed transitions: status must be RECOMMENDED_BY_TG, OR request must be escalated
-  const isEligible = request.status === 'RECOMMENDED_BY_TG' || (request.status === 'PENDING' && request.escalated === true);
+  // Allowed transitions: status must be RECOMMENDED_BY_TG, OR request must be escalated, OR unassigned TG pending
+  const isEligible =
+    request.status === 'RECOMMENDED_BY_TG' ||
+    (request.status === 'PENDING' && (request.escalated === true || !request.tg));
   if (!isEligible) {
     throw ApiError.invalidStateTransition(
-      `HOD review requires status 'RECOMMENDED_BY_TG' or an escalated pending request. Current status: '${request.status}', escalated: ${request.escalated}`
+      `HOD review requires status 'RECOMMENDED_BY_TG' or an escalated/unassigned pending request. Current status: '${request.status}', escalated: ${request.escalated}`
     );
   }
 

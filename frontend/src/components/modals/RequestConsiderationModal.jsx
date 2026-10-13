@@ -56,10 +56,6 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
       return;
     }
 
-    if (!attachment) {
-      setFormError('Please attach an official supporting certificate, OD pass, or proof.');
-      return;
-    }
 
     // Map UI category to eventType enum
     let eventType = 'HACKATHON';
@@ -87,7 +83,7 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
         selectedPeriods,
         periodTiming: timesSummary,
         description: `[${category}] ${description.trim()}`,
-        attachments: [attachment],
+        attachments: attachment ? [attachment] : [],
       });
 
       addToast(
@@ -294,12 +290,12 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
           {/* Supporting Document */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Supporting Certificate / Invitation / Medical Slip
+              Supporting Certificate / Invitation / Medical Slip <span className="text-slate-400 font-normal">(Optional)</span>
             </label>
             <DocumentUploader
               value={attachment}
               onChange={setAttachment}
-              placeholder="Attach official OD pass, hackathon letter, or certificate (PDF/PNG/DOCX)"
+              placeholder="Attach official OD pass, hackathon letter, or certificate (optional)"
             />
           </div>
 
