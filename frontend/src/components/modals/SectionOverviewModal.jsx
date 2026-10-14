@@ -35,30 +35,35 @@ export default function SectionOverviewModal({
     { id: 'D', code: 'CSE-D', label: 'CSE-D' },
   ];
 
-  // Count per section
+  const semesterStudents = students.filter((s) => {
+    const sem = s.semester || s.section?.semester;
+    return Number(sem) === Number(currentSemester);
+  });
+
+  // Count per section for the current semester
   const getSectionCount = (secId) => {
-    return students.filter((s) => {
+    return semesterStudents.filter((s) => {
       const secName = s.section?.name || s.section?.code || '';
-      return secName.includes(secId);
+      return secName.toUpperCase().includes(secId);
     }).length;
   };
 
-  const currentSectionStudents = students.filter((s) => {
+  const currentSectionStudents = semesterStudents.filter((s) => {
     const secName = s.section?.name || s.section?.code || '';
-    return secName.includes(selectedSection);
+    return secName.toUpperCase().includes(selectedSection);
   });
 
   const filteredStudents = currentSectionStudents.filter((s) => {
     const name = (s.user?.name || '').toLowerCase();
     const roll = (s.rollNumber || '').toLowerCase();
+    const enroll = (s.enrollmentNumber || '').toLowerCase();
     const email = (s.user?.email || '').toLowerCase();
     const q = search.toLowerCase().trim();
-    return !q || name.includes(q) || roll.includes(q) || email.includes(q);
+    return !q || name.includes(q) || roll.includes(q) || enroll.includes(q) || email.includes(q);
   });
 
-  const assignedTgName =
-    currentSectionStudents[0]?.mentorGroup?.tg?.user?.name ||
-    'Prof. Test Teacher';
+  const assignedTg = currentSectionStudents[0]?.mentorGroup?.tg;
+  const assignedTgName = assignedTg?.user?.name || assignedTg?.designation || 'Not assigned';
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -171,15 +176,15 @@ export default function SectionOverviewModal({
               {filteredStudents.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-slate-400">
-                    No students currently enrolled in CSE-{selectedSection}.
+                    No students currently enrolled in Semester {currentSemester} • CSE-{selectedSection}.
                   </td>
                 </tr>
               ) : (
                 filteredStudents.map((st) => {
-                  const name = st.user?.name || 'Avinash Bharti';
-                  const roll = st.rollNumber || '0105CS241101';
-                  const phone = st.user?.phone || '+916200072434';
-                  const email = st.user?.email || 'avinashbharti3007@gmail.com';
+                  const name = st.user?.name || st.designation || 'Student';
+                  const enroll = st.enrollmentNumber || st.rollNumber || 'Not provided';
+                  const phone = st.user?.phone || 'Not provided';
+                  const email = st.user?.email || 'Not provided';
                   const initial = name.charAt(0).toUpperCase();
 
                   return (
@@ -190,7 +195,7 @@ export default function SectionOverviewModal({
                         </span>
                         <span className="font-extrabold text-slate-900">{name}</span>
                       </td>
-                      <td className="p-3 font-mono text-slate-600">{roll}</td>
+                      <td className="p-3 font-mono text-slate-600">{enroll}</td>
                       <td className="p-3 text-slate-600">{phone}</td>
                       <td className="p-3 text-blue-600 font-mono truncate max-w-xs">{email}</td>
                     </tr>

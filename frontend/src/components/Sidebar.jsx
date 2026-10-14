@@ -50,13 +50,13 @@ export default function Sidebar({ isOpen, onClose }) {
       case 'hod':
         return [
           { to: '/hod', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-          { to: '/hod/considerations', label: 'Considerations', icon: <FileText size={18} />, badge: 'OD' },
+          { to: '/hod/considerations', label: 'Attendance Considerations', icon: <FileText size={18} />, badge: 'OD' },
           { to: '/hod/leaves', label: 'Leave Approvals', icon: <Calendar size={18} /> },
-          { to: '/hod/mentorship', label: 'TG Mentorship', icon: <Layers size={18} /> },
+          { to: '/hod/mentorship', label: 'Faculty & TG Management', icon: <Layers size={18} /> },
           { to: '/hod/students', label: 'Students Roster', icon: <GraduationCap size={18} /> },
           { to: '/hod/teachers', label: 'Faculty Directory', icon: <UserCheck size={18} /> },
           { to: '/hod/reports', label: 'Reports & Export', icon: <FileSpreadsheet size={18} />, badge: 'XLSX' },
-          { to: '/audit', label: 'Audit Log', icon: <Shield size={18} /> },
+          { to: '/audit', label: 'Audit Trail', icon: <Shield size={18} /> },
         ];
       case 'teacher':
         return [
@@ -98,7 +98,7 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="sidebar-brand-box flex items-center justify-between gap-3 px-5 py-4 border-b border-slate-200">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-white p-1 border border-slate-200 shadow-xs flex items-center justify-center shrink-0">
-              <img src="/oist.png" alt="OIST" className="w-full h-full object-contain" />
+              <img src="/iit.png" alt="IIT Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col min-w-0">
               <span className="font-heading text-sm font-black text-slate-900 truncate">
@@ -156,13 +156,29 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        {/* Bottom User Info Banner */}
-        <div className="p-3.5 m-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-          <div className="font-extrabold text-slate-900 truncate">
-            {currentUser?.name || 'Department Member'}
-          </div>
-          <div className="text-[11px] text-slate-500 truncate mt-0.5">
-            {currentUser?.email || 'authenticated'}
+        {/* Bottom User Info Profile Card */}
+        <div className="p-3 m-3 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white font-extrabold flex items-center justify-center shrink-0 shadow-2xs text-xs">
+              {(currentUser?.name || currentUser?.designation || 'H').charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span
+                className="font-extrabold text-slate-900 text-xs truncate leading-snug"
+                title={currentUser?.name || currentUser?.designation || 'Faculty Member'}
+              >
+                {currentUser?.name || currentUser?.designation || 'Faculty Member'}
+              </span>
+              <span className="text-[10px] font-semibold text-blue-700 truncate leading-tight mt-0.5">
+                {currentUser?.designation || (currentRole === 'hod' ? 'Head of Department' : currentRole?.toUpperCase())}
+              </span>
+              <span
+                className="text-[10px] text-slate-400 font-mono truncate leading-tight mt-0.5"
+                title={currentUser?.email || ''}
+              >
+                {currentUser?.email || 'authenticated'}
+              </span>
+            </div>
           </div>
         </div>
       </aside>

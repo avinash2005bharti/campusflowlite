@@ -34,7 +34,7 @@ export default function LoginPage() {
   const roleAccounts = {
     student: { email: 'avinashbharti3007@gmail.com', pass: 'Password@123' },
     faculty: { email: 'kavita.teacher@campusflow.edu', pass: 'Password@123' },
-    tg: { email: 'ananya.tg@campusflow.edu', pass: 'Password@123' },
+    tg: { email: 'test_teacher@mail.in', pass: 'Password@123' },
     hod: { email: 'hod@campusflow.edu', pass: 'Password@123' },
     admin: { email: 'admin@campusflow.edu', pass: 'Password@123' },
   };
@@ -123,8 +123,8 @@ export default function LoginPage() {
           <div className="mt-10 flex items-center gap-4">
             <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-white p-2.5 shadow-xl shrink-0 flex items-center justify-center border border-white/30">
               <img
-                src="/oist.png"
-                alt="Oriental Emblem"
+                src="/iit.png"
+                alt="IIT Emblem"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -178,8 +178,8 @@ export default function LoginPage() {
           <div className="lg:hidden flex flex-col items-center text-center mb-6">
             <div className="auth-mobile-emblem w-16 h-16 rounded-2xl bg-white p-2 shadow-md border border-slate-200/80 mb-3 flex items-center justify-center">
               <img
-                src="/oist.png"
-                alt="Oriental Logo"
+                src="/iit.png"
+                alt="IIT Logo"
                 className="w-full h-full object-contain"
               />
             </div>

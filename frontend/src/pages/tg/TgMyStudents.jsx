@@ -115,19 +115,19 @@ export default function TgMyStudents() {
           </div>
         ) : (
           filteredStudents.map((st) => {
-            const userName = st.user?.name || 'Avinash Bharti';
-            const rollNo = st.rollNumber || '0105CS241101';
+            const userName = st.user?.name || st.designation || 'Student';
+            const rollNo = st.enrollmentNumber || st.rollNumber || 'Not provided';
             const isActive = st.user?.isActive !== false;
             const initials = userName
               .split(' ')
               .map((n) => n[0])
               .join('')
               .toUpperCase()
-              .slice(0, 2);
-            const secName = st.section?.name?.replace(/Section\s*/i, '') || 'Sec B';
-            const semNum = st.section?.semester || 5;
-            const email = st.user?.email || 'avinashbharti3007@gmail.com';
-            const phone = st.user?.phone || '+916200072434';
+              .slice(0, 2) || 'ST';
+            const secName = st.section?.name?.replace(/Section\s*/i, '') || st.section?.code || 'B';
+            const semNum = st.semester || st.section?.semester || 5;
+            const email = st.user?.email || 'Not provided';
+            const phone = st.user?.phone || 'Not provided';
 
             return (
               <div

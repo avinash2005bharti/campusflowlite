@@ -46,15 +46,23 @@ export default function StudentConsiderations() {
     };
   }, [statusFilter]);
 
+  const [cancellingId, setCancellingId] = useState(null);
+
   const handleCancel = async (id) => {
-    if (!window.confirm('Are you sure you want to cancel this pending consideration request?')) return;
+    if (!id) return;
+    setCancellingId(id);
     try {
       await considerationApi.cancel(id);
       addToast('Cancelled', 'Consideration request has been cancelled.', 'info');
-      fetchRequests();
-      if (selectedRequest?._id === id) setSelectedRequest(null);
+      await fetchRequests();
+      if (selectedRequest?._id === id) {
+        setSelectedRequest((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
+      }
+      window.dispatchEvent(new CustomEvent('campusflow_refresh_considerations'));
     } catch (err) {
       addToast('Error', err.message || 'Cannot cancel request.', 'danger');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -90,8 +98,8 @@ export default function StudentConsiderations() {
         }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {/* Filter Tabs - occupy full width */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 w-full">
         {[
           { label: 'All Requests', value: '' },
           { label: 'Pending', value: 'PENDING' },
@@ -103,7 +111,7 @@ export default function StudentConsiderations() {
           <button
             key={tab.value}
             onClick={() => setStatusFilter(tab.value)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer shadow-2xs ${
               statusFilter === tab.value
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -114,10 +122,10 @@ export default function StudentConsiderations() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className={selectedRequest ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 w-full' : 'w-full'}>
         {/* Table / List View */}
-        <div className={selectedRequest ? 'lg:col-span-2' : 'lg:col-span-3'}>
-          <Card>
+        <div className={selectedRequest ? 'lg:col-span-2 w-full' : 'w-full'}>
+          <Card className="w-full">
             {requests.length === 0 ? (
               <EmptyState
                 title="No Consideration Requests Found"
@@ -172,10 +180,11 @@ export default function StudentConsiderations() {
                           {r.status === 'PENDING' && (
                             <button
                               onClick={() => handleCancel(r._id)}
-                              className="btn btn-danger btn-xs p-1"
+                              disabled={cancellingId === r._id}
+                              className="btn btn-danger btn-xs p-1 cursor-pointer disabled:opacity-50"
                               title="Cancel Request"
                             >
-                              <Ban size={13} />
+                              <Ban size={13} className={cancellingId === r._id ? 'animate-spin' : ''} />
                             </button>
                           )}
                         </div>
@@ -203,7 +212,7 @@ export default function StudentConsiderations() {
                 </div>
                 <button
                   onClick={() => setSelectedRequest(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1"
+                  className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
                 >
                   ✕
                 </button>
@@ -273,8 +282,11 @@ export default function StudentConsiderations() {
                   variant="danger"
                   size="sm"
                   fullWidth
+                  loading={cancellingId === selectedRequest._id}
+                  disabled={Boolean(cancellingId)}
                   icon={<Ban size={15} />}
                   onClick={() => handleCancel(selectedRequest._id)}
+                  className="cursor-pointer"
                 >
                   Cancel Request
                 </Button>

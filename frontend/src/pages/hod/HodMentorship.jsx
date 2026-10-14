@@ -16,8 +16,7 @@ import {
   AlertCircle,
   X,
   Layers,
-  ChevronDown,
-  ChevronUp,
+  Calendar,
 } from 'lucide-react';
 import AppointTgModal from '../../components/modals/AppointTgModal.jsx';
 import AddFacultyModal from '../../components/modals/AddFacultyModal.jsx';
@@ -38,10 +37,6 @@ export default function HodMentorship() {
   const [showAppointModal, setShowAppointModal] = useState(false);
   const [preselectedTeacher, setPreselectedTeacher] = useState(null);
   const [showAddFacultyModal, setShowAddFacultyModal] = useState(false);
-
-  // Cohort view mode toggle
-  const [viewMode, setViewMode] = useState('faculty'); // 'faculty' | 'cohorts'
-  const [expandedGroupId, setExpandedGroupId] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -102,36 +97,52 @@ export default function HodMentorship() {
       return;
     }
 
-    if (!window.confirm(`Revoke TG appointment for ${teacher.user?.name || 'Faculty'}?`)) return;
+    const facultyName = teacher.user?.name || teacher.designation || 'Faculty Member';
+    if (!window.confirm(`Revoke Tutor Guardian appointment for ${facultyName}?`)) {
+      return;
+    }
 
     try {
       await mentorshipApi.deleteGroup(cohort._id);
-      addToast('TG Appointment Revoked', `${teacher.user?.name} is now standard faculty.`, 'info');
+      addToast(
+        'TG Appointment Revoked',
+        `${facultyName} has been returned to standard faculty status.`,
+        'info'
+      );
       fetchData();
     } catch (err) {
-      addToast('Error', err.message || 'Failed to revoke TG appointment.', 'danger');
+      addToast('Error', err.response?.data?.error?.message || err.message || 'Failed to revoke TG appointment.', 'danger');
     }
   };
 
+  // Compute mentored section labels
+  const activeCohorts = groups.filter((g) => g.isActive !== false);
+  const mentoredSectionLabels = activeCohorts.map((g) => {
+    const sem = g.semester || g.section?.semester;
+    const sec = g.section?.name || g.section?.code || (g.name?.includes('CSE-') ? `CSE-${g.name.split('CSE-')[1]}` : g.name);
+    return sem ? `Semester ${sem} • ${sec}` : sec;
+  });
+  const uniqueSectionLabels = [...new Set(mentoredSectionLabels)];
+
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full pb-10 font-sans">
-      {/* Header matching tg management.png */}
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 font-sans">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-blue-600 mb-1">
-            <span>HOD Portal</span>
+            <span>HOD Office</span>
             <span className="text-slate-300">•</span>
-            <span className="text-slate-500">Institutional Hierarchy</span>
+            <span className="text-slate-500">Department Governance</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight m-0">
             Faculty & Tutor Guardian (TG) Management
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-1 mb-0">
-            Department of Computer Science & Engineering • Relational Workload & Mentorship Allocations
+            Department of Computer Science & Engineering • Faculty Allocations & Mentorship Hierarchy
           </p>
         </div>
 
-        {/* Action Buttons Row matching tg management.png */}
+        {/* Action Buttons Row */}
         <div className="flex items-center gap-2 flex-wrap shrink-0">
           <button
             type="button"
@@ -139,7 +150,7 @@ export default function HodMentorship() {
             className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Plus size={14} />
-            <span>+ Add Faculty Member</span>
+            <span>Add Faculty Member</span>
           </button>
 
           <button
@@ -157,11 +168,15 @@ export default function HodMentorship() {
           <button
             type="button"
             onClick={() => {
-              addToast('AI Absence Optimizer', 'Analyzing faculty workload and timetable constraints...', 'info');
+              addToast(
+                'Attendance & Workload Management',
+                'Faculty workload limits and attendance review thresholds are active.',
+                'info'
+              );
             }}
             className="px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <span>Absence & AI Adjust</span>
+            <span>Attendance & Workload Management</span>
           </button>
 
           <button
@@ -175,7 +190,7 @@ export default function HodMentorship() {
         </div>
       </div>
 
-      {/* 4 Overview Stat Cards matching tg management.png */}
+      {/* 4 Overview Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Stat 1: Total Faculty */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3.5">
@@ -187,12 +202,12 @@ export default function HodMentorship() {
               TOTAL DEPARTMENT FACULTY
             </span>
             <span className="block text-lg font-black text-slate-900 mt-0.5">
-              {teachers.length || 5} Members
+              {teachers.length} Members
             </span>
           </div>
         </div>
 
-        {/* Stat 2: Appointed TGs (Highlight Green Border) */}
+        {/* Stat 2: Appointed TGs */}
         <div className="p-4 rounded-2xl bg-white border-2 border-emerald-500 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
             <ShieldCheck size={20} />
@@ -202,7 +217,7 @@ export default function HodMentorship() {
               APPOINTED TUTOR GUARDIANS (TG)
             </span>
             <span className="block text-lg font-black text-emerald-700 mt-0.5">
-              {activeTgs.length || 2} Active TGs
+              {activeTgs.length} Active TGs
             </span>
           </div>
         </div>
@@ -212,40 +227,45 @@ export default function HodMentorship() {
           <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center shrink-0">
             <GraduationCap size={20} />
           </div>
-          <div>
+          <div className="min-w-0">
             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               MENTORED SECTIONS
             </span>
-            <span className="block text-lg font-black text-slate-900 mt-0.5">
-              Sec Semester 5 • Section B
+            <span className="block text-sm font-black text-slate-900 mt-0.5 truncate">
+              {uniqueSectionLabels.length > 0
+                ? `${uniqueSectionLabels.length} Section${uniqueSectionLabels.length === 1 ? '' : 's'}`
+                : '0 Sections'}
+            </span>
+            <span className="block text-[11px] text-slate-500 font-medium truncate mt-0.5">
+              {uniqueSectionLabels.join(', ') || 'No sections assigned'}
             </span>
           </div>
         </div>
 
-        {/* Stat 4: HOD Clearance Gateway */}
+        {/* Stat 4: Multi-Level Approval Workflow */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center shrink-0">
             <Award size={20} />
           </div>
           <div>
             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              HOD CLEARANCE GATEWAY
+              APPROVAL WORKFLOW
             </span>
             <span className="block text-lg font-black text-slate-900 mt-0.5">
-              Multi-Tier Active
+              Tier-2 Active (TG → HOD)
             </span>
           </div>
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar matching screenshot */}
+      {/* Filter Tabs & Search Bar */}
       <div className="p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left Tabs */}
         <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'all'
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -256,7 +276,7 @@ export default function HodMentorship() {
           <button
             type="button"
             onClick={() => setActiveTab('tg')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'tg'
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -267,7 +287,7 @@ export default function HodMentorship() {
           <button
             type="button"
             onClick={() => setActiveTab('standard')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'standard'
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -284,13 +304,13 @@ export default function HodMentorship() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search faculty by name, email, or designation..."
+            placeholder="Search faculty by name, employee ID, email, or designation..."
             className="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-all font-medium"
           />
         </div>
       </div>
 
-      {/* Faculty Cards Grid matching tg management.png */}
+      {/* Faculty Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {filteredTeachers.length === 0 ? (
           <div className="col-span-full p-12 text-center bg-white rounded-2xl border border-slate-200">
@@ -304,10 +324,13 @@ export default function HodMentorship() {
           filteredTeachers.map((t) => {
             const isTg = isTeacherTg(t);
             const cohort = getTeacherCohort(t);
-            const isHod = t.user?.role === 'hod' || t.designation?.toLowerCase().includes('head');
-            const facultyName = t.user?.name || 'Faculty Member';
-            const email = t.user?.email || 'faculty@oist.edu';
+            const facultyName = t.user?.name || t.designation || 'Faculty Member';
+            const email = t.user?.email || 'authenticated';
             const designation = t.designation || (isTg ? 'Assistant Professor (TG)' : 'Assistant Professor');
+
+            const cohortSemester = cohort?.semester || cohort?.section?.semester;
+            const cohortSection = cohort?.section?.name || cohort?.section?.code || (cohort?.name?.includes('CSE-') ? `CSE-${cohort.name.split('CSE-')[1]}` : cohort?.name);
+            const cohortLabel = cohortSemester && cohortSection ? `Semester ${cohortSemester} • ${cohortSection}` : (cohort?.name || 'Assigned');
 
             return (
               <div
@@ -326,7 +349,7 @@ export default function HodMentorship() {
                       <p className="text-xs text-blue-700 font-bold m-0 mt-0.5">
                         {designation}
                       </p>
-                      <p className="text-[11px] text-slate-400 font-mono m-0 mt-0.5 truncate max-w-[170px]">
+                      <p className="text-[11px] text-slate-400 font-mono m-0 mt-0.5 truncate max-w-[170px]" title={email}>
                         {email}
                       </p>
                     </div>
@@ -347,45 +370,33 @@ export default function HodMentorship() {
                     </span>
                   </div>
 
-                  {/* Workload Slots */}
-                  <div className="grid grid-cols-2 gap-2 p-2 rounded-xl bg-slate-50 border border-slate-100 text-[11px] my-2">
-                    <div>
-                      <span className="block text-[10px] text-slate-400 font-medium">Max Periods / Day</span>
-                      <span className="font-extrabold text-slate-800">4 slots</span>
-                    </div>
-                    <div>
-                      <span className="block text-[10px] text-slate-400 font-medium">Max Periods / Week</span>
-                      <span className="font-extrabold text-blue-600">18 slots</span>
-                    </div>
-                  </div>
-
                   {/* TG Appointment Status Pill */}
                   {isTg ? (
-                    <div className="p-2 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-1.5 my-2">
+                    <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-1.5 my-2">
                       <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
                       <span className="truncate">
-                        Designated TG {cohort ? `(Semester 5 • Section B)` : '(Section unassigned)'}
+                        Tutor Guardian: {cohortLabel}
                       </span>
                     </div>
                   ) : (
-                    <div className="p-2 rounded-xl bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-500 flex items-center gap-1.5 my-2">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs font-semibold text-slate-500 flex items-center gap-1.5 my-2">
                       <Users size={14} className="text-slate-400 shrink-0" />
-                      <span>Regular Faculty Member</span>
+                      <span>Faculty Member</span>
                     </div>
                   )}
                 </div>
 
-                {/* Bottom Actions Row matching screenshot */}
+                {/* Bottom Actions Row */}
                 <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
                   <button
                     type="button"
                     onClick={() => {
-                      addToast('Edit Faculty', `Editing profile of ${facultyName}`, 'info');
+                      addToast('Faculty Details', `${facultyName} (${designation})`, 'info');
                     }}
                     className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <Edit2 size={12} />
-                    <span>Edit</span>
+                    <span>View</span>
                   </button>
 
                   {isTg ? (

@@ -9,6 +9,14 @@ export const listStudents = async (query) => {
   if (query.section) {
     filter.section = query.section;
   }
+  if (query.semester) {
+    const semNum = parseInt(String(query.semester).replace(/\D/g, ''), 10);
+    if (!isNaN(semNum)) {
+      const Section = (await import('../../models/Section.js')).default;
+      const matchingSections = await Section.find({ semester: semNum }).select('_id');
+      filter.section = { $in: matchingSections.map((s) => s._id) };
+    }
+  }
   if (query.department) {
     filter.department = query.department;
   }
@@ -16,7 +24,7 @@ export const listStudents = async (query) => {
     filter.mentorGroup = query.mentor;
   }
 
-  // If search query is provided, search rollNumber or find matching user IDs
+  // If search query is provided, search rollNumber, enrollmentNumber or matching user IDs
   if (query.search) {
     const searchRegex = new RegExp(query.search, 'i');
     const matchingUsers = await User.find({
@@ -26,6 +34,7 @@ export const listStudents = async (query) => {
 
     filter.$or = [
       { rollNumber: searchRegex },
+      { enrollmentNumber: searchRegex },
       { user: { $in: matchingUsers.map((u) => u._id) } },
     ];
   }

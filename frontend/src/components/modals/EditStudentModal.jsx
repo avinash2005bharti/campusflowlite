@@ -45,7 +45,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }) {
     setError(null);
 
     if (!name.trim()) {
-      setError('Full legal name is required.');
+      setError('Full name is required.');
       return;
     }
 
@@ -86,7 +86,7 @@ export default function EditStudentModal({ student, onClose, onSuccess }) {
                 Edit Student Details
               </h3>
               <p className="text-xs text-slate-500 m-0">
-                Department Record Update for {student?.rollNumber || '0105CS241101'}
+                Department Record Update for {student?.enrollmentNumber || student?.rollNumber || 'Enrolled Student'}
               </p>
             </div>
           </div>

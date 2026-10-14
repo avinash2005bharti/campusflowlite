@@ -67,7 +67,7 @@ export default function StudentRegisterPage() {
     setSuccessMsg('');
 
     if (!formData.name.trim()) {
-      setError('Please provide your full legal name.');
+      setError('Please provide your full name.');
       return;
     }
 
@@ -140,8 +140,8 @@ export default function StudentRegisterPage() {
           <div className="mt-8 flex items-start gap-4">
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white p-2.5 shadow-xl shrink-0 flex items-center justify-center border border-white/30">
               <img
-                src="/oist.png"
-                alt="Oriental Logo"
+                src="/iit.png"
+                alt="IIT Logo"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -225,10 +225,10 @@ export default function StudentRegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Full Legal Name */}
+            {/* Full Name */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Full Legal Name <span className="text-rose-500">*</span>
+                Full Name <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />

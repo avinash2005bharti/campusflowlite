@@ -19,6 +19,17 @@ const mentorGroupSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    semester: {
+      type: Number,
+      min: 1,
+      max: 8,
+      default: null,
+    },
+    section: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      default: null,
+    },
     students: [
       {
         type: mongoose.Schema.Types.ObjectId,

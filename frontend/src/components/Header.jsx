@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useERP } from '../context/ERPContext.jsx';
 import { Bell, ShieldCheck, User, Menu, LogOut, ArrowRight, CheckCheck, RefreshCw } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { notificationApi } from '../api';
+import { formatDateTimeIST } from '../utils/constants.js';
 
 export default function Header({ isSidebarOpen, onToggleSidebar }) {
   const {
@@ -16,24 +17,43 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
   } = useERP();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [expandedNotifId, setExpandedNotifId] = useState(null);
+  const notifRef = useRef(null);
 
-  const roleEmojiMap = {
-    student: '🎓',
-    teacher: '👨‍🏫',
-    tg: '🛡️',
-    hod: '🏛️',
-    admin: '👑',
+  // Close notifications on outside click or Escape key
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (notifRef.current && !notifRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showNotifications]);
+
+  const handleNotificationClick = async (notif) => {
+    setExpandedNotifId(expandedNotifId === notif._id ? null : notif._id);
+    if (!notif.isRead) {
+      try {
+        await notificationApi.markAsRead(notif._id);
+        refreshNotifications();
+      } catch {
+        // ignore
+      }
+    }
   };
-
-  const roleTitleMap = {
-    student: 'Student Portal',
-    teacher: 'Faculty Portal',
-    tg: 'Mentor / TG Desk',
-    hod: 'HOD Administration',
-    admin: 'System Administrator',
-  };
-
-  const isTeacherAndTG = Boolean(currentUser?.isTG || currentUser?.mentorGroupId);
 
   const handleMarkAllRead = async () => {
     try {
@@ -65,8 +85,8 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
           >
             <div className="w-9 h-9 rounded-xl bg-white p-0.5 flex items-center justify-center border border-slate-200 shadow-xs group-hover:scale-105 transition-transform overflow-hidden">
               <img
-                src="/oist.png"
-                alt="Logo"
+                src="/iit.png"
+                alt="IIT Logo"
                 className="w-full h-full object-contain"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -122,12 +142,13 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
         {/* Right: Notification Bell & Profile */}
         <div className="flex items-center gap-2">
           {/* Notification Bell with Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={notifRef}>
             <button
               type="button"
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors"
+              className="relative p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
               title="Notifications"
+              aria-label="View notifications"
             >
               <Bell size={18} />
               {unreadNotifCount > 0 && (
@@ -139,7 +160,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
             {showNotifications && (
               <div
-                className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-scale-up"
+                className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-scale-up"
                 style={{ transformOrigin: 'top right' }}
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
@@ -154,7 +175,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                   {unreadNotifCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer"
                     >
                       <CheckCheck size={12} />
                       <span>Mark all read</span>
@@ -162,26 +183,43 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                   )}
                 </div>
 
-                <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                   {notifications.length === 0 ? (
                     <div className="p-6 text-center text-xs text-slate-400">
                       No notifications yet.
                     </div>
                   ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n._id}
-                        className={`p-3 text-xs transition-colors hover:bg-slate-50 ${
-                          !n.isRead ? 'bg-blue-50/40 font-medium' : 'text-slate-600'
-                        }`}
-                      >
-                        <div className="font-bold text-slate-900">{n.title}</div>
-                        <div className="text-[11px] text-slate-600 mt-0.5">{n.message}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    notifications.map((n) => {
+                      const isExpanded = expandedNotifId === n._id;
+                      return (
+                        <div
+                          key={n._id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={`p-3.5 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
+                            !n.isRead ? 'bg-blue-50/50' : 'text-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                              {!n.isRead && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
+                              )}
+                              <span>{n.title}</span>
+                            </div>
+                            <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                              {formatDateTimeIST(n.createdAt)}
+                            </span>
+                          </div>
+                          <div
+                            className={`text-[11px] text-slate-600 mt-1 leading-relaxed ${
+                              isExpanded ? '' : 'line-clamp-2'
+                            }`}
+                          >
+                            {n.message}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -190,12 +228,15 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
           {/* User Name & Logout */}
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-bold text-slate-900 leading-tight">
-                {currentUser?.name || 'User'}
+            <div className="hidden sm:flex flex-col text-right max-w-[140px]">
+              <span
+                className="text-xs font-bold text-slate-900 leading-tight truncate"
+                title={currentUser?.name || currentUser?.designation || 'User'}
+              >
+                {currentUser?.name || currentUser?.designation || 'User'}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-                {currentUser?.role || currentRole}
+              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider truncate">
+                {currentUser?.designation || currentUser?.role || currentRole}
               </span>
             </div>
 

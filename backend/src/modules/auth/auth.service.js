@@ -43,7 +43,23 @@ const createRefreshTokenRecord = async (userId, userAgent = null, ip = null) => 
 };
 
 export const login = async ({ email, password, userAgent, ip }) => {
-  const user = await User.findOne({ email, isActive: true }).select('+passwordHash');
+  const query = email?.trim() || '';
+  let user = await User.findOne({ email: query.toLowerCase(), isActive: true }).select('+passwordHash');
+
+  if (!user) {
+    const student = await Student.findOne({ rollNumber: new RegExp(`^${query}$`, 'i') });
+    if (student) {
+      user = await User.findOne({ _id: student.user, isActive: true }).select('+passwordHash');
+    }
+  }
+
+  if (!user) {
+    const teacher = await Teacher.findOne({ employeeId: new RegExp(`^${query}$`, 'i') });
+    if (teacher) {
+      user = await User.findOne({ _id: teacher.user, isActive: true }).select('+passwordHash');
+    }
+  }
+
   if (!user) {
     throw ApiError.badRequest('Invalid email or password');
   }

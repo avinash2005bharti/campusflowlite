@@ -33,7 +33,7 @@ router.post(
   '/',
   authorize('HOD', 'ADMIN'),
   asyncHandler(async (req, res) => {
-    const group = await mentorshipService.createMentorGroup(req.body);
+    const group = await mentorshipService.createMentorGroup(req.body, req.user);
     return sendCreated(res, group);
   })
 );
@@ -42,8 +42,17 @@ router.put(
   '/:id/students',
   authorize('HOD', 'ADMIN'),
   asyncHandler(async (req, res) => {
-    const updated = await mentorshipService.updateMentorGroupStudents(req.params.id, req.body);
+    const updated = await mentorshipService.updateMentorGroupStudents(req.params.id, req.body, req.user);
     return sendSuccess(res, updated);
+  })
+);
+
+router.delete(
+  '/:id',
+  authorize('HOD', 'ADMIN'),
+  asyncHandler(async (req, res) => {
+    const result = await mentorshipService.revokeMentorGroup(req.params.id, req.user);
+    return sendSuccess(res, result);
   })
 );
 

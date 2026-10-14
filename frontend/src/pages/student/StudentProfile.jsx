@@ -10,6 +10,8 @@ export default function StudentProfile() {
   const profile = currentUser?.profile || {};
   const mentor = profile?.mentorGroup?.tg?.user;
 
+  const studentMobile = currentUser?.phone || profile?.studentPhone || profile?.guardianPhone || '+916200072434';
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -26,7 +28,7 @@ export default function StudentProfile() {
           <h2 className="text-lg font-black text-slate-900 m-0">{currentUser?.name}</h2>
           <span className="badge badge-indigo text-xs mt-1.5 font-bold">STUDENT</span>
           <div className="text-xs text-slate-500 mt-2">{currentUser?.email}</div>
-          <div className="text-xs text-slate-500">{currentUser?.phone || 'No phone set'}</div>
+          <div className="text-xs text-slate-700 font-semibold mt-0.5">{studentMobile}</div>
 
           <div className="w-full pt-4 mt-6 border-t border-slate-100 flex flex-col gap-2">
             <Button
@@ -51,42 +53,42 @@ export default function StudentProfile() {
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold block mb-1">Roll Number</span>
               <span className="text-base font-extrabold text-slate-900 font-mono">
-                {profile.rollNumber || '24CSE001'}
+                {profile.enrollmentNumber || profile.rollNumber || 'Not provided'}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold block mb-1">Class Section</span>
               <span className="text-base font-extrabold text-slate-900">
-                {profile.section?.code || 'CSE-4A'}
+                {profile.section?.code || profile.section?.name || 'CSE-B'}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold block mb-1">Department</span>
               <span className="text-sm font-extrabold text-slate-900">
-                {profile.department?.name || 'Computer Science & Engineering'}
+                {profile.department?.name || 'Computer Science and Engineering'}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
               <span className="text-slate-400 font-bold block mb-1">Enrollment Year</span>
               <span className="text-sm font-extrabold text-slate-900">
-                {profile.enrollmentYear || 2024}
+                {profile.enrollmentYear || 2023}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold block mb-1">Guardian Name</span>
+              <span className="text-slate-400 font-bold block mb-1">Student Mobile Number</span>
               <span className="text-sm font-extrabold text-slate-900">
-                {profile.guardianName || 'Parent / Guardian'}
+                {studentMobile}
               </span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100">
-              <span className="text-slate-400 font-bold block mb-1">Guardian Phone</span>
+              <span className="text-slate-400 font-bold block mb-1">Current Semester</span>
               <span className="text-sm font-extrabold text-slate-900">
-                {profile.guardianPhone || '9876543210'}
+                Semester {profile.section?.semester || 5} (Enrolled)
               </span>
             </div>
           </div>
@@ -103,10 +105,10 @@ export default function StudentProfile() {
                 </div>
                 <div>
                   <div className="text-sm font-extrabold text-slate-900">
-                    {mentor?.name || 'Prof. Ananya Verma'}
+                    {mentor?.name ? `${mentor.name} (${mentor?.designation || 'Tutor Guardian'})` : mentor?.designation ? `${mentor.designation} (TG)` : 'Not assigned'}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {mentor?.email || 'ananya.tg@campusflow.edu'}
+                    {mentor?.email || 'Not provided'}
                   </div>
                 </div>
               </div>

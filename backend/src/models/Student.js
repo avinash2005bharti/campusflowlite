@@ -27,6 +27,12 @@ const studentSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
+    enrollmentNumber: {
+      type: String,
+      trim: true,
+      index: true,
+      default: '',
+    },
     enrollmentYear: {
       type: Number,
       required: true,

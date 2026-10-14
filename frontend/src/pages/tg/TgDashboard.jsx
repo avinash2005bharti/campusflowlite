@@ -96,7 +96,7 @@ export default function TgDashboard() {
           </div>
           <div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight m-0">
-              Welcome back, {currentUser?.name || 'Prof. Ananya Verma'}!
+              Welcome back, {currentUser?.name || currentUser?.designation || 'Tutor Guardian'}!
             </h1>
             <p className="text-xs text-slate-500 mt-1 mb-3 font-medium">
               Here's the latest overview of your assigned section.

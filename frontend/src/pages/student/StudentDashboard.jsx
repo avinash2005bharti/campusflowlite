@@ -65,6 +65,51 @@ export default function StudentDashboard() {
   const approvedLeavesCount = summary?.leaves?.approved ?? 0;
   const approvedConsiderationsCount = summary?.considerations?.approved ?? 0;
 
+  const approvedLeaveDays = recentLeaves
+    .filter((l) => l.status === 'APPROVED_BY_HOD' || l.status === 'APPROVED')
+    .reduce((sum, l) => sum + (l.totalDays || 1), 0);
+
+  const approvedPeriodsCount = recentConsiderations
+    .filter((c) => c.status === 'APPROVED_BY_HOD' || c.status === 'APPROVED')
+    .reduce((sum, c) => sum + (c.hodReview?.approvedPeriods || c.requestedPeriods || 0), 0);
+
+  const renderStatusBadge = (status) => {
+    switch (status) {
+      case 'APPROVED_BY_HOD':
+      case 'APPROVED':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Approved by HOD
+          </span>
+        );
+      case 'RECOMMENDED_BY_TG':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            Recommended by TG
+          </span>
+        );
+      case 'REJECTED':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+            Rejected
+          </span>
+        );
+      case 'CANCELLED':
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+            Cancelled
+          </span>
+        );
+      case 'PENDING':
+      default:
+        return (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+            Pending Review
+          </span>
+        );
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-10 font-sans">
       {/* =======================================================================
@@ -73,7 +118,7 @@ export default function StudentDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 m-0">
-            <span>Good day, {currentUser?.name || 'Avinash Bharti'}</span>
+            <span>Good day, {currentUser?.name || currentUser?.designation || 'Student'}</span>
             <span className="text-2xl">👋</span>
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1 mb-0 flex items-center gap-2 flex-wrap">
@@ -117,7 +162,7 @@ export default function StudentDashboard() {
           2) Apply Leave
           3) My Requests (with clear visible clock logo)
           ======================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Button 1: Request Consideration */}
         <button
           type="button"
@@ -174,7 +219,9 @@ export default function StudentDashboard() {
               {approvedLeavesCount}
             </span>
             <span className="block text-xs text-slate-500 font-medium mt-0.5">
-              Sanctioned Records
+              {approvedLeavesCount > 0
+                ? `${approvedLeaveDays} Day${approvedLeaveDays !== 1 ? 's' : ''} Sanctioned`
+                : 'Leaves Availed: 0 Days'}
             </span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 flex items-center justify-center shrink-0">
@@ -185,13 +232,15 @@ export default function StudentDashboard() {
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              APPROVED CONSIDERAT...
+              ON-DUTY (OD) CREDITS
             </span>
             <span className="block text-2xl font-black text-slate-900 mt-0.5">
               {approvedConsiderationsCount}
             </span>
             <span className="block text-xs text-emerald-600 font-medium mt-0.5">
-              Waiver Granted by HOD
+              {approvedConsiderationsCount > 0
+                ? `${approvedPeriodsCount} Lectures Credited`
+                : 'Attendance Credit Granted'}
             </span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
@@ -213,12 +262,14 @@ export default function StudentDashboard() {
               ASSIGNED MENTOR / TUTOR GUARDIAN (TG)
             </span>
             <span className="block text-sm font-extrabold text-slate-900 mt-0.5">
-              {tgMentor?.name || tgTeacher?.designation
-                ? `${tgMentor?.name || 'Prof. Ananya Verma'} (${tgTeacher?.designation || 'Associate Professor'})`
-                : 'Prof. Ananya Verma (Associate Professor)'}
+              {tgMentor?.name
+                ? `${tgMentor.name} (${tgTeacher?.designation || 'Tutor Guardian'})`
+                : tgTeacher?.designation
+                ? `${tgTeacher.designation} (TG)`
+                : 'Not assigned'}
             </span>
             <span className="block text-xs text-slate-500 font-medium mt-0.5">
-              Cohort: {studentProfile.mentorGroup?.academicYear ? `Academic Year ${studentProfile.mentorGroup.academicYear}` : 'CSE-4B'} • Email: {tgMentor?.email || 'ananya.tg@campusflow.edu'}
+              Academic Session: {studentProfile.mentorGroup?.academicYear || '2025-26'} • Section: {sectionName} • Email: {tgMentor?.email || 'Not provided'}
             </span>
           </div>
         </div>
@@ -229,12 +280,12 @@ export default function StudentDashboard() {
       </div>
 
       {/* =======================================================================
-          RECENT CONSIDERATION (OD) REQUESTS CARD
+          RECENT CONSIDERATION REQUESTS CARD
           ======================================================================= */}
       <div className="rounded-2xl bg-white border border-slate-200 shadow-2xs p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider m-0">
-            Recent Consideration (OD) Requests
+            Recent Attendance Consideration Requests
           </h2>
           <button
             type="button"
@@ -275,9 +326,7 @@ export default function StudentDashboard() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-900">{req.eventTitle}</span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                      {req.status}
-                    </span>
+                    {renderStatusBadge(req.status)}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 m-0">
                     {req.startDate} to {req.endDate} • {req.requestedPeriods} Periods
@@ -342,9 +391,7 @@ export default function StudentDashboard() {
                     <span className="text-xs font-bold text-slate-900">
                       {leave.leaveType} Leave ({leave.totalDays} Day{leave.totalDays !== 1 ? 's' : ''})
                     </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      {leave.status}
-                    </span>
+                    {renderStatusBadge(leave.status)}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 m-0">
                     {leave.startDate} to {leave.endDate} • {leave.reason}

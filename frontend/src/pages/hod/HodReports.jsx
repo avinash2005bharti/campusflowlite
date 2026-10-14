@@ -1,6 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { reportApi } from '../../api';
 import {
+  STATUS_LABELS,
+  REQUEST_TYPE_LABELS,
+  formatDateIST,
+  formatPeriods,
+} from '../../utils/constants.js';
+import {
   PageHeader,
   Card,
   Button,
@@ -82,7 +88,7 @@ export default function HodReports() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 font-sans">
       <PageHeader
         title="Department Academic Reports"
         description="Audit-grade attendance consideration and leave reports with real-time Excel spreadsheet export."
@@ -91,7 +97,7 @@ export default function HodReports() {
             variant="success"
             onClick={handleExport}
             disabled={exporting}
-            className="text-xs font-black shadow-xs"
+            className="text-xs font-black shadow-xs cursor-pointer"
           >
             <Download size={15} />
             {exporting ? 'Generating XLSX...' : 'Download Excel (.xlsx)'}
@@ -107,10 +113,10 @@ export default function HodReports() {
             setStatus('');
             setType('');
           }}
-          className={`btn btn-sm text-xs font-bold px-4 py-2 flex items-center gap-2 ${
+          className={`btn btn-sm text-xs font-bold px-4 py-2 flex items-center gap-2 cursor-pointer transition-all ${
             activeTab === 'considerations'
               ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 border border-slate-200'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           <FileText size={15} />
@@ -123,10 +129,10 @@ export default function HodReports() {
             setStatus('');
             setType('');
           }}
-          className={`btn btn-sm text-xs font-bold px-4 py-2 flex items-center gap-2 ${
+          className={`btn btn-sm text-xs font-bold px-4 py-2 flex items-center gap-2 cursor-pointer transition-all ${
             activeTab === 'leaves'
               ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 border border-slate-200'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           <Calendar size={15} />
@@ -142,11 +148,10 @@ export default function HodReports() {
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="form-select w-full bg-white border-slate-200 rounded-xl py-1.5 text-xs"
+              className="form-select w-full bg-white border-slate-200 rounded-xl py-1.5 text-xs font-medium cursor-pointer"
             >
               <option value="">All Statuses</option>
               <option value="APPROVED_BY_HOD">Approved by HOD</option>
-              <option value="APPROVED">Approved</option>
               <option value="RECOMMENDED_BY_TG">Recommended by TG</option>
               <option value="PENDING">Pending</option>
               <option value="REJECTED">Rejected</option>
@@ -155,17 +160,17 @@ export default function HodReports() {
 
           <div>
             <label className="font-bold text-slate-600 block mb-1">
-              {activeTab === 'considerations' ? 'Consideration Type' : 'Leave Type'}
+              {activeTab === 'considerations' ? 'Request Type' : 'Leave Type'}
             </label>
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="form-select w-full bg-white border-slate-200 rounded-xl py-1.5 text-xs"
+              className="form-select w-full bg-white border-slate-200 rounded-xl py-1.5 text-xs font-medium cursor-pointer"
             >
               <option value="">All Types</option>
               {activeTab === 'considerations' ? (
                 <>
-                  <option value="OD">On Duty (OD)</option>
+                  <option value="OD">On-Duty (OD)</option>
                   <option value="MEDICAL">Medical</option>
                   <option value="SPORTS">Sports</option>
                   <option value="EVENT">Event</option>
@@ -189,7 +194,7 @@ export default function HodReports() {
               type="date"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
-              className="input-field w-full text-xs py-1"
+              className="input-field w-full text-xs py-1.5 bg-white border-slate-200 rounded-xl"
             />
           </div>
 
@@ -199,7 +204,7 @@ export default function HodReports() {
               type="date"
               value={to}
               onChange={(e) => setTo(e.target.value)}
-              className="input-field w-full text-xs py-1"
+              className="input-field w-full text-xs py-1.5 bg-white border-slate-200 rounded-xl"
             />
           </div>
         </div>
@@ -210,13 +215,13 @@ export default function HodReports() {
         <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center gap-2">
             <FileSpreadsheet size={16} className="text-emerald-600" />
-            <h3 className="font-heading font-black text-xs text-slate-800">
+            <h3 className="font-heading font-black text-xs text-slate-800 m-0">
               Report Data Records ({data.length})
             </h3>
           </div>
           <button
             onClick={fetchData}
-            className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+            className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
           >
             <RefreshCw size={12} /> Refresh
           </button>
@@ -231,80 +236,92 @@ export default function HodReports() {
             icon={FileSpreadsheet}
           />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{activeTab === 'considerations' ? 'Student' : 'Applicant'}</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Dates</TableHead>
-                <TableHead>{activeTab === 'considerations' ? 'Periods' : 'Days'}</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reason</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.map((row) => (
-                <TableRow key={row._id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="font-heading font-black text-xs text-slate-900">
-                        {activeTab === 'considerations'
-                          ? row.student?.user?.name || row.student?.rollNumber
-                          : row.applicant?.name || 'Applicant'}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        {activeTab === 'considerations'
-                          ? row.student?.rollNumber || row.student?.enrollmentNumber
-                          : row.applicantRole}
-                      </span>
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="badge badge-indigo text-[10px] font-bold">
-                      {row.type || row.leaveType}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="text-xs font-medium text-slate-700">
-                      {row.startDate === row.endDate
-                        ? row.startDate
-                        : `${row.startDate} to ${row.endDate}`}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="text-xs font-bold text-slate-800">
-                      {activeTab === 'considerations'
-                        ? `${row.requestedPeriods} req${row.approvedPeriods !== undefined ? ` / ${row.approvedPeriods} app` : ''}`
-                        : `${row.totalDays} day(s)`}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>
-                    <span
-                      className={`badge text-[10px] font-bold ${
-                        row.status?.includes('APPROVED')
-                          ? 'badge-emerald'
-                          : row.status === 'REJECTED'
-                          ? 'badge-danger'
-                          : 'badge-amber'
-                      }`}
-                    >
-                      {row.status}
-                    </span>
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="text-xs text-slate-600 truncate max-w-[200px] block" title={row.reason}>
-                      {row.reason}
-                    </span>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{activeTab === 'considerations' ? 'Student' : 'Applicant'}</TableHead>
+                  <TableHead>Request Type</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>{activeTab === 'considerations' ? 'Periods' : 'Duration'}</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Reason</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {data.map((row) => {
+                  const rawType = activeTab === 'considerations' ? (row.eventType || row.type) : row.leaveType;
+                  const typeLabel = REQUEST_TYPE_LABELS[rawType] || rawType || 'Not available';
+                  const statusLabel = STATUS_LABELS[row.status] || row.status;
+                  const reasonText = row.description || row.reason || 'Not provided';
+                  const studentName = row.student?.user?.name || row.student?.designation || 'Student';
+                  const applicantName = row.applicant?.name || row.applicant?.designation || (row.applicantRole === 'TEACHER' ? 'Faculty Member' : 'Student');
+
+                  return (
+                    <TableRow key={row._id}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-heading font-black text-xs text-slate-900">
+                            {activeTab === 'considerations' ? studentName : applicantName}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            {activeTab === 'considerations'
+                              ? row.student?.enrollmentNumber || row.student?.rollNumber || 'Not provided'
+                              : row.applicantRole === 'TEACHER' ? 'Faculty' : 'Student'}
+                          </span>
+                        </div>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="badge badge-indigo text-[10px] font-bold">
+                          {typeLabel}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="text-xs font-medium text-slate-700">
+                          {row.startDate === row.endDate
+                            ? formatDateIST(row.startDate)
+                            : `${formatDateIST(row.startDate)} to ${formatDateIST(row.endDate)}`}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span className="text-xs font-bold text-slate-800">
+                          {activeTab === 'considerations'
+                            ? formatPeriods(row.approvedPeriods !== undefined ? row.approvedPeriods : row.requestedPeriods)
+                            : `${row.totalDays} day${row.totalDays > 1 ? 's' : ''}`}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span
+                          className={`badge text-[10px] font-bold ${
+                            row.status?.includes('APPROVED')
+                              ? 'badge-emerald'
+                              : row.status === 'REJECTED'
+                              ? 'badge-danger'
+                              : 'badge-amber'
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>
+                        <span
+                          className="text-xs text-slate-600 truncate max-w-[200px] block"
+                          title={reasonText}
+                        >
+                          {reasonText}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </Card>
     </div>

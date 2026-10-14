@@ -32,6 +32,33 @@ export default function Badge({
       ? { fontSize: '11px', padding: '0.15rem 0.5rem' }
       : {};
 
+  const formatChildren = (content) => {
+    if (typeof content !== 'string') return content;
+    switch (content) {
+      case 'APPROVED_BY_HOD':
+        return 'Approved by HOD';
+      case 'RECOMMENDED_BY_TG':
+        return 'Recommended by TG';
+      case 'PENDING':
+        return 'Pending Review';
+      case 'CANCELLED':
+        return 'Cancelled';
+      case 'REJECTED':
+        return 'Rejected';
+      case 'APPROVED':
+        return 'Approved';
+      default:
+        if (content.includes('_')) {
+          return content
+            .toLowerCase()
+            .split('_')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
+        }
+        return content;
+    }
+  };
+
   return (
     <span
       className={`badge ${variantClass} ${className}`.trim()}
@@ -52,7 +79,7 @@ export default function Badge({
         />
       )}
       {icon && <span className="inline-flex shrink-0">{icon}</span>}
-      {children}
+      {formatChildren(children)}
     </span>
   );
 }

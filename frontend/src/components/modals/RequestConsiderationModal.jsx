@@ -117,7 +117,7 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
                 Request Attendance Consideration (OD)
               </h3>
               <p className="text-xs text-slate-500 m-0">
-                Autonomous credit request for missed classes
+                Submit attendance consideration for official college activities
               </p>
             </div>
           </div>
@@ -141,7 +141,7 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
           {/* Consideration Category */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Consideration Category / Nature of Absence
+              Consideration Category
             </label>
             <select
               value={category}
@@ -192,17 +192,19 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
           {/* Periods & Lecture Times */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <label className="text-xs font-bold text-slate-700 m-0 flex items-center gap-1.5">
                 <span>Periods & Lecture Times Required</span>
-                <span className="text-purple-600 font-bold">({selectedPeriods.length} selected)</span>
-              </span>
+                <span className="text-purple-700 font-bold text-[10px] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                  {selectedPeriods.length} selected
+                </span>
+              </label>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => selectFilter('all')}
                   className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
                 >
-                  All 7
+                  All (7)
                 </button>
                 <button
                   type="button"
@@ -267,7 +269,7 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
             <div className="mt-2 text-[11px] font-medium text-purple-700 flex items-center gap-1.5 bg-purple-50/70 border border-purple-100 rounded-lg px-3 py-1.5">
               <CheckCircle2 size={13} className="shrink-0 text-purple-600" />
               <span>
-                {selectedPeriods.length} Lecture Period{selectedPeriods.length !== 1 ? 's' : ''} will be logged for autonomous attendance credit.
+                {selectedPeriods.length} lecture period{selectedPeriods.length !== 1 ? 's' : ''} selected for attendance credit.
               </span>
             </div>
           </div>
@@ -289,13 +291,13 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
 
           {/* Supporting Document */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Supporting Certificate / Invitation / Medical Slip <span className="text-slate-400 font-normal">(Optional)</span>
-            </label>
             <DocumentUploader
-              value={attachment}
-              onChange={setAttachment}
-              placeholder="Attach official OD pass, hackathon letter, or certificate (optional)"
+              label="Supporting Certificate / Invitation / Medical Slip (Optional)"
+              hint="Upload official OD pass, hackathon letter, or certificate (PDF, JPG, PNG up to 5 MB - optional)"
+              selectedFile={attachment}
+              onFileVerified={setAttachment}
+              onFileRemove={() => setAttachment(null)}
+              required={false}
             />
           </div>
 

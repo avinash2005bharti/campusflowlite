@@ -66,10 +66,10 @@ export default function OfficialClearancesLedgerModal({
     if (activeTab === 'considerations') {
       csv = 'Student Name,Enrollment,Section,Periods,Time From,Time To,Date From,Date To,Number of Days\n';
       list.forEach((item) => {
-        const name = item.student?.user?.name || 'Avinash Bharti';
-        const roll = item.student?.rollNumber || '0105CS241101';
+        const name = item.student?.user?.name || item.student?.designation || 'Student';
+        const roll = item.student?.enrollmentNumber || item.student?.rollNumber || 'Not provided';
         const sec = item.student?.section?.name?.replace(/Section\s*/i, '') || 'B';
-        const periods = item.selectedPeriods?.join(' ') || `P${item.requestedPeriods}`;
+        const periods = item.selectedPeriods?.join(' ') || `P${item.requestedPeriods || 1}`;
         csv += `"${name}","${roll}","${sec}","${periods}","10:50 AM","01:20 PM","${item.startDate}","${item.endDate}","1 Day"\n`;
       });
     } else {
@@ -117,8 +117,8 @@ export default function OfficialClearancesLedgerModal({
   const currentList = activeTab === 'considerations' ? considerations : leaves;
   const filteredList = currentList.filter((item) => {
     const student = item.student || {};
-    const name = (student.user?.name || item.applicant?.name || 'Avinash Bharti').toLowerCase();
-    const roll = (student.rollNumber || '').toLowerCase();
+    const name = (student.user?.name || item.applicant?.name || student.designation || 'Student').toLowerCase();
+    const roll = (student.enrollmentNumber || student.rollNumber || '').toLowerCase();
     const query = searchQuery.toLowerCase().trim();
 
     if (query && !name.includes(query) && !roll.includes(query)) {
@@ -334,8 +334,8 @@ export default function OfficialClearancesLedgerModal({
               ) : (
                 filteredList.map((item, idx) => {
                   const student = item.student || {};
-                  const studentName = student.user?.name || item.applicant?.name || 'Avinash Bharti';
-                  const rollNo = student.rollNumber || '0105CS241101';
+                  const studentName = student.user?.name || item.applicant?.name || student.designation || 'Student';
+                  const rollNo = student.enrollmentNumber || student.rollNumber || 'Not provided';
                   const secName = (student.section?.name || 'B').replace(/Section\s*/i, '');
                   const reasonSubtitle = item.description || item.reason || item.eventTitle || 'Official duty';
                   const periodsStr = item.selectedPeriods?.length

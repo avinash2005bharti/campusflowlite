@@ -8,8 +8,8 @@ export default function FormalApplicationModal({ item, onClose }) {
     window.print();
   };
 
-  const studentName = item.student?.user?.name || item.applicant?.name || 'Avinash Bharti';
-  const enrollmentNo = item.student?.rollNumber || '0105CS241101';
+  const studentName = item.student?.user?.name || item.applicant?.name || item.student?.designation || 'Student';
+  const enrollmentNo = item.student?.enrollmentNumber || item.student?.rollNumber || 'Not provided';
   const sectionCode = item.student?.section?.name || item.student?.section?.code || 'Section B';
   const academicDept = 'Department of Computer Science & Engineering';
 
@@ -49,13 +49,13 @@ export default function FormalApplicationModal({ item, onClose }) {
         <div className="mt-4 p-6 sm:p-8 rounded-2xl border-2 border-slate-300 bg-white font-sans text-slate-900 shadow-sm relative overflow-hidden print:border-none print:p-0">
           {/* Institutional Watermark */}
           <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none">
-            <img src="/oriental.png" alt="OIST Seal" className="w-96 h-96 object-contain" />
+            <img src="/iit.png" alt="IIT Seal" className="w-96 h-96 object-contain" />
           </div>
 
           {/* Institutional Header */}
           <div className="text-center pb-5 border-b-2 border-slate-800">
             <div className="w-14 h-14 mx-auto mb-2">
-              <img src="/oriental.png" alt="OIST Logo" className="w-full h-full object-contain" />
+              <img src="/iit.png" alt="IIT Logo" className="w-full h-full object-contain" />
             </div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-600 m-0">
               ORIENTAL GROUP OF INSTITUTES

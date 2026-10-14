@@ -236,18 +236,28 @@ export const getTGQueue = async (user, query) => {
   };
 };
 
-export const getHODQueue = async (query) => {
+export const getHODQueue = async (query = {}) => {
   const { page, limit, skip } = parsePagination(query);
-  const filter = {
-    $or: [
+  const filter = {};
+
+  if (query.all === 'true' || query.status === 'ALL') {
+    // Return all department records without restricting to action queue
+  } else if (query.status === 'ACTION_NEEDED' || (!query.all && !query.status)) {
+    filter.$or = [
       { status: 'RECOMMENDED_BY_TG' },
       { status: 'PENDING', escalated: true },
       { status: 'PENDING', tg: null },
-    ],
-  };
-
-  if (query.status && query.status !== 'ALL') {
+    ];
+  } else if (query.status === 'APPROVED' || query.status === 'APPROVED_BY_HOD') {
+    filter.status = 'APPROVED_BY_HOD';
+  } else if (query.status === 'REJECTED') {
+    filter.status = { $in: ['REJECTED', 'REJECTED_BY_HOD', 'REJECTED_BY_TG'] };
+  } else if (query.status) {
     filter.status = query.status.toUpperCase();
+  }
+
+  if (query.type && query.type !== 'ALL') {
+    filter.eventType = query.type.toUpperCase();
   }
 
   const [requests, total] = await Promise.all([
@@ -256,16 +266,18 @@ export const getHODQueue = async (query) => {
         path: 'student',
         populate: [
           { path: 'user', select: 'name email phone' },
-          { path: 'section', select: 'name code' },
+          { path: 'section', select: 'name code year semester' },
+          { path: 'department', select: 'name code' },
         ],
       })
       .populate({
         path: 'tg',
-        populate: { path: 'user', select: 'name email' },
+        populate: { path: 'user', select: 'name email phone' },
       })
+      .populate('hodReview.reviewedBy', 'name email')
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: 1 }),
+      .sort({ createdAt: -1 }),
     ConsiderationRequest.countDocuments(filter),
   ]);
 
@@ -316,7 +328,13 @@ export const cancelConsideration = async (id, user) => {
     throw ApiError.notFound('Consideration request not found');
   }
 
-  if (request.student?.user?.toString() !== user.id) {
+  const studentUserId = request.student?.user?._id?.toString() || request.student?.user?.toString();
+  const studentDocId = request.student?._id?.toString() || request.student?.toString();
+  const isOwner = (studentUserId && studentUserId === user.id) || 
+                  (user.studentId && studentDocId === user.studentId) ||
+                  (user.role === 'ADMIN');
+
+  if (!isOwner) {
     throw ApiError.forbidden('You can only cancel your own consideration requests');
   }
 

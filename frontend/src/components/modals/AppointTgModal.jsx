@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, ShieldCheck, UserCheck, AlertCircle } from 'lucide-react';
+import { X, ShieldCheck, UserCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { mentorshipApi } from '../../api';
 import { useERP } from '../../context/ERPContext.jsx';
+import { DEFAULT_ACADEMIC_SESSION } from '../../utils/constants.js';
 
 export default function AppointTgModal({
   teachers = [],
@@ -12,11 +13,11 @@ export default function AppointTgModal({
   const { addToast } = useERP();
 
   const [selectedTeacherId, setSelectedTeacherId] = useState(
-    preselectedTeacher?._id || (teachers[0]?._id || '')
+    preselectedTeacher?._id || teachers[0]?._id || ''
   );
   const [semester, setSemester] = useState('Semester 5');
-  const [section, setSection] = useState('Section A');
-  const [session, setSession] = useState('2026-27');
+  const [section, setSection] = useState('Section B');
+  const [session, setSession] = useState(DEFAULT_ACADEMIC_SESSION);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -25,23 +26,38 @@ export default function AppointTgModal({
 
   const handleConfirm = async (e) => {
     e.preventDefault();
+    setError(null);
+
     if (!selectedTeacherId) {
       setError('Please select a faculty member.');
       return;
     }
+
+    if (!session || !session.trim()) {
+      setError('Please provide a valid academic session (e.g. 2025-26).');
+      return;
+    }
+
+    const semNum = parseInt(semester.replace(/\D/g, ''), 10) || 5;
+    const secLetter = section.replace('Section ', '').trim() || 'A';
 
     setSubmitting(true);
     try {
       await mentorshipApi.createGroup({
         department: selectedTeacher?.department?._id || selectedTeacher?.department,
         tgId: selectedTeacherId,
-        academicYear: session,
-        studentIds: [],
+        academicYear: session.trim(),
+        semester: semNum,
+        sectionCode: secLetter,
+        name: `TG Cohort - Sem ${semNum} CSE-${secLetter}`,
       });
+
+      const facultyName =
+        selectedTeacher?.user?.name || selectedTeacher?.designation || 'Faculty Member';
 
       addToast(
         'TG Appointed',
-        `${selectedTeacher?.user?.name || 'Faculty'} is now appointed as Tutor Guardian for ${semester}, ${section}.`,
+        `${facultyName} is now appointed as Tutor Guardian for ${semester}, ${section} (${session}).`,
         'success'
       );
       if (onSuccess) onSuccess();
@@ -53,10 +69,13 @@ export default function AppointTgModal({
     }
   };
 
+  const facultyDisplayName =
+    selectedTeacher?.user?.name || selectedTeacher?.designation || 'Faculty Member';
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal-container max-w-lg w-[95%] bg-white p-6 sm:p-7 rounded-3xl text-slate-900"
+        className="modal-container max-w-lg w-[95%] bg-white p-6 sm:p-7 rounded-3xl text-slate-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -70,13 +89,14 @@ export default function AppointTgModal({
                 Appoint Tutor Guardian (TG)
               </h3>
               <p className="text-xs text-slate-500 m-0">
-                HOD Departmental Governance & Mentorship Assignment
+                Departmental Mentorship & Academic Cohort Assignment
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            aria-label="Close"
           >
             <X size={18} />
           </button>
@@ -96,10 +116,10 @@ export default function AppointTgModal({
               SELECTED FACULTY MEMBER
             </span>
             <span className="block text-sm font-black text-slate-900 mt-0.5">
-              {selectedTeacher?.user?.name || 'Faculty Member'}
+              {facultyDisplayName}
             </span>
             <span className="block text-xs text-slate-600 mt-0.5">
-              {selectedTeacher?.designation || 'Professor'} • {selectedTeacher?.user?.email || 'faculty@campusflow.edu'}
+              {selectedTeacher?.designation || 'Faculty'} • {selectedTeacher?.user?.email || 'authenticated'}
             </span>
           </div>
 
@@ -111,11 +131,11 @@ export default function AppointTgModal({
             <select
               value={selectedTeacherId}
               onChange={(e) => setSelectedTeacherId(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none cursor-pointer"
             >
               {teachers.map((t) => (
                 <option key={t._id} value={t._id}>
-                  {t.user?.name || 'Teacher'} ({t.designation || 'Faculty'})
+                  {t.user?.name || t.designation || 'Faculty'} ({t.designation || 'Faculty'})
                 </option>
               ))}
             </select>
@@ -130,7 +150,7 @@ export default function AppointTgModal({
               <select
                 value={semester}
                 onChange={(e) => setSemester(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
               >
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
                   <option key={s} value={`Semester ${s}`}>
@@ -147,7 +167,7 @@ export default function AppointTgModal({
               <select
                 value={section}
                 onChange={(e) => setSection(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
               >
                 <option value="Section A">Section A</option>
                 <option value="Section B">Section B</option>
@@ -164,12 +184,13 @@ export default function AppointTgModal({
           {/* Academic Session */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Academic Session
+              Academic Session <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={session}
               onChange={(e) => setSession(e.target.value)}
+              placeholder="e.g. 2025-26"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
             />
           </div>
@@ -181,35 +202,44 @@ export default function AppointTgModal({
             </span>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>First-tier review & approval for student leave requests</span>
+              <span>First-tier review & recommendation for student leave applications</span>
             </div>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>Monitoring individual attendance and issuing 75% shortage alerts</span>
+              <span>Verification of On-Duty (OD) and attendance consideration requests</span>
             </div>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>Direct TG portal login credentials enabled with mentee roster</span>
+              <span>Monitoring mentee attendance and issuing 75% shortage advisories</span>
             </div>
           </div>
 
-          {/* Footer buttons matching screenshot */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+          {/* Footer buttons with Appoint TG clearly visible */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm flex items-center gap-1.5 cursor-pointer"
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white shadow-sm flex items-center gap-1.5 cursor-pointer transition-all disabled:opacity-60"
             >
-              <UserCheck size={14} />
-              <span>{submitting ? 'Confirming...' : 'Confirm TG Appointment'}</span>
+              {submitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Appointing TG...</span>
+                </>
+              ) : (
+                <>
+                  <UserCheck size={14} />
+                  <span>Appoint TG</span>
+                </>
+              )}
             </button>
           </div>
         </form>

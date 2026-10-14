@@ -76,6 +76,10 @@ export const mentorshipApi = {
   updateStudents: async (groupId, data) => {
     return apiClient.put(`/mentor-groups/${groupId}/students`, data);
   },
+
+  deleteGroup: async (groupId) => {
+    return apiClient.delete(`/mentor-groups/${groupId}`);
+  },
 };
 
 export const masterDataApi = {

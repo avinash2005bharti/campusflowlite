@@ -46,15 +46,23 @@ export default function StudentLeaves() {
     };
   }, [statusFilter]);
 
+  const [cancellingId, setCancellingId] = useState(null);
+
   const handleCancel = async (id) => {
-    if (!window.confirm('Cancel this pending leave application?')) return;
+    if (!id) return;
+    setCancellingId(id);
     try {
       await leaveApi.cancel(id);
       addToast('Cancelled', 'Leave application cancelled.', 'info');
-      fetchLeaves();
-      if (selectedLeave?._id === id) setSelectedLeave(null);
+      await fetchLeaves();
+      if (selectedLeave?._id === id) {
+        setSelectedLeave((prev) => (prev ? { ...prev, status: 'CANCELLED' } : null));
+      }
+      window.dispatchEvent(new CustomEvent('campusflow_refresh_leaves'));
     } catch (err) {
       addToast('Error', err.message || 'Cannot cancel leave.', 'danger');
+    } finally {
+      setCancellingId(null);
     }
   };
 
@@ -91,8 +99,8 @@ export default function StudentLeaves() {
         }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {/* Filter Tabs - occupy full width */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5 w-full">
         {[
           { label: 'All Leaves', value: '' },
           { label: 'Pending', value: 'PENDING' },
@@ -104,7 +112,7 @@ export default function StudentLeaves() {
           <button
             key={tab.value}
             onClick={() => setStatusFilter(tab.value)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer shadow-2xs ${
               statusFilter === tab.value
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
@@ -115,9 +123,9 @@ export default function StudentLeaves() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className={selectedLeave ? 'lg:col-span-2' : 'lg:col-span-3'}>
-          <Card>
+      <div className={selectedLeave ? 'grid grid-cols-1 lg:grid-cols-3 gap-6 w-full' : 'w-full'}>
+        <div className={selectedLeave ? 'lg:col-span-2 w-full' : 'w-full'}>
+          <Card className="w-full">
             {leaves.length === 0 ? (
               <EmptyState
                 title="No Leave Records Found"
@@ -164,10 +172,11 @@ export default function StudentLeaves() {
                           {l.status === 'PENDING' && (
                             <button
                               onClick={() => handleCancel(l._id)}
-                              className="btn btn-danger btn-xs p-1"
+                              disabled={cancellingId === l._id}
+                              className="btn btn-danger btn-xs p-1 cursor-pointer disabled:opacity-50"
                               title="Cancel Application"
                             >
-                              <Ban size={13} />
+                              <Ban size={13} className={cancellingId === l._id ? 'animate-spin' : ''} />
                             </button>
                           )}
                         </div>
@@ -254,8 +263,11 @@ export default function StudentLeaves() {
                   variant="danger"
                   size="sm"
                   fullWidth
+                  loading={cancellingId === selectedLeave._id}
+                  disabled={Boolean(cancellingId)}
                   icon={<Ban size={15} />}
                   onClick={() => handleCancel(selectedLeave._id)}
+                  className="cursor-pointer"
                 >
                   Cancel Leave
                 </Button>

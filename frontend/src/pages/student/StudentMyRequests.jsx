@@ -76,8 +76,8 @@ export default function StudentMyRequests() {
       : allItems;
 
   const studentProfile = currentUser?.profile || {};
-  const studentName = currentUser?.name || 'Avinash Bharti';
-  const enrollmentNo = studentProfile.rollNumber || '0105CS241101';
+  const studentName = currentUser?.name || currentUser?.designation || 'Student';
+  const enrollmentNo = studentProfile.enrollmentNumber || studentProfile.rollNumber || 'Not provided';
 
   const getStatusBadge = (status) => {
     switch (status) {

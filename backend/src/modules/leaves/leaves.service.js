@@ -247,25 +247,30 @@ export const getTGLeaveQueue = async (user, query) => {
   };
 };
 
-export const getHODLeaveQueue = async (query) => {
+export const getHODLeaveQueue = async (query = {}) => {
   const { page, limit, skip } = parsePagination(query);
-
-  // Student leaves recommended or escalated or unassigned, PLUS Faculty leaves PENDING
-  const filter = {
-    $or: [
+  const filter = {};
+  if (query.all === 'true' || query.status === 'ALL') {
+    // Return all student and faculty department leaves
+  } else if (query.status === 'ACTION_NEEDED' || (!query.all && !query.status)) {
+    filter.$or = [
       { applicantRole: 'STUDENT', status: 'RECOMMENDED_BY_TG' },
       { applicantRole: 'STUDENT', status: 'PENDING', escalated: true },
       { applicantRole: 'STUDENT', status: 'PENDING', tg: null },
       { applicantRole: 'TEACHER', status: 'PENDING' },
-    ],
-  };
-
-  if (query.roleFilter) {
-    filter.applicantRole = query.roleFilter.toUpperCase();
+    ];
+  } else if (query.status === 'APPROVED' || query.status === 'APPROVED_BY_HOD') {
+    filter.status = { $in: ['APPROVED', 'APPROVED_BY_HOD'] };
+  } else if (query.status === 'REJECTED') {
+    filter.status = 'REJECTED';
+  } else if (query.status) {
+    filter.status = query.status.toUpperCase();
   }
 
-  if (query.status && query.status !== 'ALL') {
-    filter.status = query.status.toUpperCase();
+  if (query.roleFilter && query.roleFilter !== 'ALL') {
+    filter.applicantRole = query.roleFilter.toUpperCase();
+  } else if (query.role && query.role !== 'ALL') {
+    filter.applicantRole = query.role.toUpperCase();
   }
 
   const [leaves, total] = await Promise.all([
@@ -275,7 +280,8 @@ export const getHODLeaveQueue = async (query) => {
         path: 'student',
         populate: [
           { path: 'user', select: 'name email phone' },
-          { path: 'section', select: 'name code' },
+          { path: 'section', select: 'name code year semester' },
+          { path: 'department', select: 'name code' },
         ],
       })
       .populate({
@@ -284,11 +290,12 @@ export const getHODLeaveQueue = async (query) => {
       })
       .populate({
         path: 'tg',
-        populate: { path: 'user', select: 'name email' },
+        populate: { path: 'user', select: 'name email phone' },
       })
+      .populate('finalReview.reviewedBy', 'name email')
       .skip(skip)
       .limit(limit)
-      .sort({ createdAt: 1 }),
+      .sort({ createdAt: -1 }),
     LeaveApplication.countDocuments(filter),
   ]);
 

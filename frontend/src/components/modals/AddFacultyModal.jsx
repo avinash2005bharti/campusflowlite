@@ -79,7 +79,7 @@ export default function AddFacultyModal({ onClose, onSuccess }) {
         <form onSubmit={handleSubmit} className="space-y-3 mt-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Full Legal Name <span className="text-rose-500">*</span>
+              Full Name <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"

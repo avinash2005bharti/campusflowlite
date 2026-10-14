@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { dashboardApi, considerationApi, leaveApi, masterDataApi } from '../../api';
+import { DEFAULT_ACADEMIC_SESSION } from '../../utils/constants.js';
 import {
-  Building2,
   Calendar,
   Clock,
   AlertCircle,
@@ -11,13 +11,9 @@ import {
   GraduationCap,
   UserPlus,
   ShieldCheck,
-  Megaphone,
   ArrowRight,
   ChevronDown,
   FileText,
-  FileSpreadsheet,
-  Layers,
-  Sparkles,
 } from 'lucide-react';
 import OfficialClearancesLedgerModal from '../../components/modals/OfficialClearancesLedgerModal.jsx';
 import SectionOverviewModal from '../../components/modals/SectionOverviewModal.jsx';
@@ -38,12 +34,13 @@ export default function HodDashboard() {
   // Modal controls
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
+  const [sectionModalTarget, setSectionModalTarget] = useState({ section: 'B', semester: 5 });
   const [showClassesModal, setShowClassesModal] = useState(false);
   const [showAddFacultyModal, setShowAddFacultyModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
 
-  // Selected Section Overview Semester
-  const [selectedSem, setSelectedSem] = useState('Sem 5');
+  // Selected Section Overview Semester (e.g. 5)
+  const [selectedSemNumber, setSelectedSemNumber] = useState(5);
 
   // Formatted date and time
   const [currentDateTime, setCurrentDateTime] = useState('');
@@ -99,18 +96,31 @@ export default function HodDashboard() {
     };
   }, []);
 
-  // Section B student count
+  // Filter students by selected semester for the section overview
+  const semStudents = students.filter((s) => {
+    const sem = s.semester || s.section?.semester;
+    return Number(sem) === Number(selectedSemNumber);
+  });
+
   const getSectionStudentCount = (sectionLetter) => {
-    return students.filter((s) => {
+    return semStudents.filter((s) => {
       const secName = s.section?.name || s.section?.code || '';
-      return secName.toLowerCase().includes(sectionLetter.toLowerCase());
+      return secName.toUpperCase().includes(sectionLetter.toUpperCase());
     }).length;
   };
 
-  const countSecB = getSectionStudentCount('B') || 4;
-  const countSecA = getSectionStudentCount('A') || 0;
-  const countSecC = getSectionStudentCount('C') || 0;
-  const countSecD = getSectionStudentCount('D') || 0;
+  const countSecA = getSectionStudentCount('A');
+  const countSecB = getSectionStudentCount('B');
+  const countSecC = getSectionStudentCount('C');
+  const countSecD = getSectionStudentCount('D');
+
+  const openSectionDetails = (secLetter) => {
+    setSectionModalTarget({
+      section: secLetter,
+      semester: selectedSemNumber,
+    });
+    setShowSectionModal(true);
+  };
 
   // Determine greeting based on current hour
   const getGreeting = () => {
@@ -120,14 +130,49 @@ export default function HodDashboard() {
     return 'Good Evening';
   };
 
+  // Semester distribution calculation based on real enrolled students
+  const totalStudents = students.length;
+  const semesterColors = [
+    { sem: 1, label: '1st Sem', color: '#3B82F6', dotColor: 'bg-blue-500' },
+    { sem: 2, label: '2nd Sem', color: '#38BDF8', dotColor: 'bg-sky-400' },
+    { sem: 3, label: '3rd Sem', color: '#06B6D4', dotColor: 'bg-cyan-500' },
+    { sem: 4, label: '4th Sem', color: '#14B8A6', dotColor: 'bg-teal-500' },
+    { sem: 5, label: '5th Sem', color: '#F59E0B', dotColor: 'bg-amber-500' },
+    { sem: 6, label: '6th Sem', color: '#EC4899', dotColor: 'bg-pink-500' },
+    { sem: 7, label: '7th Sem', color: '#8B5CF6', dotColor: 'bg-purple-500' },
+    { sem: 8, label: '8th Sem', color: '#6366F1', dotColor: 'bg-indigo-500' },
+  ];
+
+  const semDistribution = semesterColors.map((sc) => {
+    const count = students.filter((s) => Number(s.semester || s.section?.semester) === sc.sem).length;
+    const pct = totalStudents > 0 ? Math.round((count / totalStudents) * 100) : 0;
+    return { ...sc, count, pct };
+  });
+
+  // Calculate SVG donut slices
+  const circumference = 2 * Math.PI * 38; // ≈ 238.76
+  let runningOffset = 0;
+  const donutSlices = semDistribution
+    .filter((item) => item.count > 0)
+    .map((item) => {
+      const sliceLength = (item.count / (totalStudents || 1)) * circumference;
+      const offset = -runningOffset;
+      runningOffset += sliceLength;
+      return {
+        ...item,
+        dashArray: `${sliceLength} ${circumference - sliceLength}`,
+        dashOffset: offset,
+      };
+    });
+
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full pb-10 font-sans">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 font-sans">
       {/* =======================================================================
           TOP ROW: HOD Office Greeting & Hero Campus Banner
           ======================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
         {/* Left: Office badge, Greeting & View Consideration button */}
-        <div className="lg:col-span-6 flex flex-col justify-between py-2">
+        <div className="lg:col-span-6 flex flex-col justify-between py-1">
           <div>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900 text-white text-[11px] font-bold tracking-wide mb-3 shadow-xs">
               <span>🏛️</span>
@@ -145,10 +190,10 @@ export default function HodDashboard() {
           </div>
 
           {/* Date pill & View Consideration Button */}
-          <div className="flex flex-wrap items-center gap-3 mt-6">
+          <div className="flex flex-wrap items-center gap-3 mt-5">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs">
               <Calendar size={14} className="text-blue-600 shrink-0" />
-              <span>{currentDateTime || 'Mon, Oct 12, 2026 | 09:24 PM'}</span>
+              <span>{currentDateTime || 'Mon, Oct 14, 2026 | 03:40 PM'}</span>
             </div>
 
             <button
@@ -163,13 +208,13 @@ export default function HodDashboard() {
         </div>
 
         {/* Right: OIST Campus Hero Banner */}
-        <div className="lg:col-span-6 relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 min-h-[170px] flex flex-col justify-between p-6 bg-slate-900 text-white group">
+        <div className="lg:col-span-6 relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 min-h-[160px] flex flex-col justify-between p-6 bg-slate-900 text-white group">
           {/* Background image with gradient overlay */}
           <div
             className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
             style={{ backgroundImage: `url('/campus_building.jpg')` }}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/70 to-slate-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/75 to-slate-950/60" />
 
           {/* Banner Content */}
           <div className="relative z-10 max-w-sm">
@@ -184,23 +229,25 @@ export default function HodDashboard() {
 
           {/* Bottom Right Academic Year Pill */}
           <div className="relative z-10 self-end mt-4">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-md">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/85 backdrop-blur-md border border-white/20 text-white text-xs font-bold shadow-md">
               <Calendar size={13} className="text-blue-400" />
-              <span>Academic Year: 2025-26</span>
-              <ChevronDown size={12} className="text-slate-300 ml-0.5" />
+              <span>Academic Year: {DEFAULT_ACADEMIC_SESSION}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* =======================================================================
-          MIDDLE ROW: 5 Key Stat & Action Cards matching UI wireframe
+          MIDDLE ROW: 5 Key Stat & Action Cards
           ======================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* 1. Pending Approvals */}
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => navigate('/hod/considerations')}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/hod/considerations')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-rose-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group focus:outline-none focus:ring-2 focus:ring-rose-500"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-700">Pending Approvals</span>
@@ -217,7 +264,6 @@ export default function HodDashboard() {
 
           <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
             <span>Requires attention</span>
-            {/* Smooth wavy red SVG accent line */}
             <svg
               className="w-12 h-3 text-rose-500 overflow-visible"
               viewBox="0 0 48 10"
@@ -236,8 +282,11 @@ export default function HodDashboard() {
 
         {/* 2. Leave Requests */}
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => navigate('/hod/leaves')}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group"
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/hod/leaves')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between group focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-700">Leave Requests</span>
@@ -259,8 +308,11 @@ export default function HodDashboard() {
 
         {/* 3. Add Faculty */}
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => setShowAddFacultyModal(true)}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group"
+          onKeyDown={(e) => e.key === 'Enter' && setShowAddFacultyModal(true)}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <GraduationCap size={20} />
@@ -277,8 +329,11 @@ export default function HodDashboard() {
 
         {/* 4. Add Student */}
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => setShowAddStudentModal(true)}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group"
+          onKeyDown={(e) => e.key === 'Enter' && setShowAddStudentModal(true)}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <UserPlus size={20} />
@@ -293,10 +348,13 @@ export default function HodDashboard() {
           </div>
         </div>
 
-        {/* 5. Manage TGs (handwritten "manages tgs" in UI wireframe) */}
+        {/* 5. Manage TGs */}
         <div
+          role="button"
+          tabIndex={0}
           onClick={() => navigate('/hod/mentorship')}
-          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group"
+          onKeyDown={(e) => e.key === 'Enter' && navigate('/hod/mentorship')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-300 hover:shadow-xs transition-all cursor-pointer flex items-center gap-3 group focus:outline-none focus:ring-2 focus:ring-indigo-500"
         >
           <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <ShieldCheck size={20} />
@@ -314,12 +372,12 @@ export default function HodDashboard() {
 
       {/* =======================================================================
           BOTTOM ROW: 3 Primary Dashboard Cards
-          1) Semester Distribution
-          2) Section Overview (CSE Only)
+          1) Semester Distribution (Dynamic based on real students)
+          2) Section Overview (CSE Only - filtered by selected semester)
           3) Notice Board
           ======================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-        {/* CARD 1: Semester Distribution (lg: 4 cols) */}
+        {/* CARD 1: Semester Distribution */}
         <div className="lg:col-span-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -339,112 +397,74 @@ export default function HodDashboard() {
               </button>
             </div>
 
-            {/* Donut Chart + Legend */}
-            <div className="flex items-center justify-between gap-4 py-6">
-              {/* SVG Donut Ring */}
-              <div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  {/* Background Track */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    fill="transparent"
-                    stroke="#F1F5F9"
-                    strokeWidth="14"
-                  />
-                  {/* Active 5th Sem Arc (Golden Amber / Orange) */}
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="38"
-                    fill="transparent"
-                    stroke="#F59E0B"
-                    strokeWidth="14"
-                    strokeDasharray="238.76"
-                    strokeDashoffset="0"
-                    strokeLinecap="round"
-                  />
-                  {/* Accent Cyan Dot Indicator */}
-                  <circle
-                    cx="50"
-                    cy="12"
-                    r="4"
-                    fill="#06B6D4"
-                  />
-                </svg>
+            {totalStudents === 0 ? (
+              <div className="py-12 text-center flex flex-col items-center justify-center">
+                <p className="text-xs font-bold text-slate-700 m-0">No enrolled students found</p>
+                <p className="text-[11px] text-slate-400 font-medium m-0 mt-1">
+                  Distribution will appear once students are registered.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-4 py-5">
+                {/* SVG Donut Ring */}
+                <div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="38"
+                      fill="transparent"
+                      stroke="#F1F5F9"
+                      strokeWidth="14"
+                    />
+                    {donutSlices.map((slice) => (
+                      <circle
+                        key={slice.sem}
+                        cx="50"
+                        cy="50"
+                        r="38"
+                        fill="transparent"
+                        stroke={slice.color}
+                        strokeWidth="14"
+                        strokeDasharray={slice.dashArray}
+                        strokeDashoffset={slice.dashOffset}
+                      />
+                    ))}
+                  </svg>
 
-                {/* Inner center text */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                  <span className="text-xl font-black text-slate-900 leading-none">8</span>
-                  <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Semesters</span>
+                  {/* Inner center text */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                    <span className="text-xl font-black text-slate-900 leading-none">
+                      {totalStudents}
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Students</span>
+                  </div>
+                </div>
+
+                {/* Legend Grid */}
+                <div className="flex-1 grid grid-cols-2 gap-x-2.5 gap-y-1.5 text-[11px]">
+                  {semDistribution.map((item) => (
+                    <div key={item.sem} className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-slate-600 font-medium truncate">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${item.dotColor}`} />
+                        {item.label}
+                      </span>
+                      <span
+                        className={`font-bold ml-1 ${
+                          item.pct > 0 ? 'text-slate-900 font-extrabold' : 'text-slate-400'
+                        }`}
+                      >
+                        {item.pct}%
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              {/* Legend Grid */}
-              <div className="flex-1 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
-                    1st Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-sky-400" />
-                    2nd Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                    3rd Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-teal-400" />
-                    4th Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-900 font-bold">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    5th Sem
-                  </span>
-                  <span className="font-bold text-amber-600">100%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-pink-400" />
-                    6th Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
-                    7th Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-600 font-medium">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                    8th Sem
-                  </span>
-                  <span className="font-bold text-slate-800">0%</span>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* CARD 2: Section Overview (CSE Only) (lg: 4 cols) */}
+        {/* CARD 2: Section Overview (CSE Only) */}
         <div className="lg:col-span-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -457,21 +477,23 @@ export default function HodDashboard() {
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1 text-[11px] text-slate-500 font-semibold">
-                  <span>Sem</span>
+                  <span>Semester</span>
                   <select
-                    value={selectedSem}
-                    onChange={(e) => setSelectedSem(e.target.value)}
-                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-800 focus:outline-none"
+                    value={selectedSemNumber}
+                    onChange={(e) => setSelectedSemNumber(Number(e.target.value))}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-0.5 text-[11px] font-bold text-slate-800 focus:outline-none cursor-pointer"
                   >
-                    <option value="Sem 5">Sem 5</option>
-                    <option value="Sem 3">Sem 3</option>
-                    <option value="Sem 7">Sem 7</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                      <option key={sem} value={sem}>
+                        {sem}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => setShowSectionModal(true)}
+                  onClick={() => openSectionDetails('B')}
                   className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                 >
                   <span>View details</span>
@@ -480,11 +502,14 @@ export default function HodDashboard() {
               </div>
             </div>
 
-            {/* 4 Section Cards Grid matching hod dashboard.png */}
-            <div className="grid grid-cols-4 gap-2.5 py-5">
+            {/* 4 Section Cards Grid */}
+            <div className="grid grid-cols-4 gap-2.5 py-4">
               {/* CSE-A */}
               <div
-                onClick={() => setShowSectionModal(true)}
+                role="button"
+                tabIndex={0}
+                onClick={() => openSectionDetails('A')}
+                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('A')}
                 className="p-3 rounded-2xl bg-blue-50/50 border border-blue-100/80 text-center hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between min-h-[110px]"
               >
                 <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-600 flex items-center justify-center">
@@ -505,7 +530,10 @@ export default function HodDashboard() {
 
               {/* CSE-B */}
               <div
-                onClick={() => setShowSectionModal(true)}
+                role="button"
+                tabIndex={0}
+                onClick={() => openSectionDetails('B')}
+                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('B')}
                 className="p-3 rounded-2xl bg-purple-50/50 border border-purple-100/80 text-center hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between min-h-[110px]"
               >
                 <div className="w-7 h-7 rounded-lg bg-purple-100/70 text-purple-600 flex items-center justify-center">
@@ -526,7 +554,10 @@ export default function HodDashboard() {
 
               {/* CSE-C */}
               <div
-                onClick={() => setShowSectionModal(true)}
+                role="button"
+                tabIndex={0}
+                onClick={() => openSectionDetails('C')}
+                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('C')}
                 className="p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100/80 text-center hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between min-h-[110px]"
               >
                 <div className="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-600 flex items-center justify-center">
@@ -547,7 +578,10 @@ export default function HodDashboard() {
 
               {/* CSE-D */}
               <div
-                onClick={() => setShowSectionModal(true)}
+                role="button"
+                tabIndex={0}
+                onClick={() => openSectionDetails('D')}
+                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('D')}
                 className="p-3 rounded-2xl bg-amber-50/50 border border-amber-100/80 text-center hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between min-h-[110px]"
               >
                 <div className="w-7 h-7 rounded-lg bg-amber-100/70 text-amber-600 flex items-center justify-center">
@@ -569,7 +603,7 @@ export default function HodDashboard() {
           </div>
         </div>
 
-        {/* CARD 3: Notice Board (lg: 4 cols) */}
+        {/* CARD 3: Notice Board */}
         <div className="lg:col-span-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -589,7 +623,7 @@ export default function HodDashboard() {
               </span>
             </div>
 
-            {/* Empty State matching hod dashboard.png */}
+            {/* Empty State */}
             <div className="py-10 text-center flex flex-col items-center justify-center">
               <p className="text-xs font-extrabold text-slate-700 m-0">
                 No official notices published yet
@@ -614,8 +648,8 @@ export default function HodDashboard() {
 
       {showSectionModal && (
         <SectionOverviewModal
-          initialSection="B"
-          initialSemester={5}
+          initialSection={sectionModalTarget.section}
+          initialSemester={sectionModalTarget.semester}
           onClose={() => setShowSectionModal(false)}
           onOpenClassesCentral={() => {
             setShowSectionModal(false);
