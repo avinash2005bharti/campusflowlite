@@ -8,6 +8,9 @@ import corsOptions from './config/cors.js';
 import { generalLimiter } from './middleware/rateLimit.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
+// Ensure all models are registered
+import './models/index.js';
+
 // Route imports
 import authRoutes from './modules/auth/auth.routes.js';
 import usersRoutes from './modules/users/users.routes.js';

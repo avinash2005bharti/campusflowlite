@@ -2,6 +2,8 @@ import MentorGroup from '../../models/MentorGroup.js';
 import Student from '../../models/Student.js';
 import Teacher from '../../models/Teacher.js';
 import Section from '../../models/Section.js';
+import Department from '../../models/Department.js';
+import User from '../../models/User.js';
 import AuditLog from '../../models/AuditLog.js';
 import ApiError from '../../utils/ApiError.js';
 

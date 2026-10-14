@@ -1,5 +1,9 @@
 import Student from '../../models/Student.js';
 import User from '../../models/User.js';
+import Section from '../../models/Section.js';
+import Department from '../../models/Department.js';
+import MentorGroup from '../../models/MentorGroup.js';
+import Teacher from '../../models/Teacher.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 
 export const listStudents = async (query) => {
@@ -12,7 +16,6 @@ export const listStudents = async (query) => {
   if (query.semester) {
     const semNum = parseInt(String(query.semester).replace(/\D/g, ''), 10);
     if (!isNaN(semNum)) {
-      const Section = (await import('../../models/Section.js')).default;
       const matchingSections = await Section.find({ semester: semNum }).select('_id');
       filter.section = { $in: matchingSections.map((s) => s._id) };
     }

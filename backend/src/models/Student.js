@@ -37,6 +37,12 @@ const studentSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    semester: {
+      type: Number,
+      min: 1,
+      max: 8,
+      default: 5,
+    },
     guardianName: {
       type: String,
       trim: true,

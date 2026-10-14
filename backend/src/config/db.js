@@ -1,6 +1,7 @@
 import dns from 'node:dns';
 import mongoose from 'mongoose';
 import env from './env.js';
+import '../models/index.js';
 
 // Resolve DNS SRV query issues commonly encountered on Windows / local ISP DNS resolvers
 try {

@@ -1,6 +1,8 @@
 import Teacher from '../../models/Teacher.js';
 import MentorGroup from '../../models/MentorGroup.js';
 import User from '../../models/User.js';
+import Department from '../../models/Department.js';
+import Section from '../../models/Section.js';
 
 export const listTeachers = async (query = {}) => {
   const filter = {};

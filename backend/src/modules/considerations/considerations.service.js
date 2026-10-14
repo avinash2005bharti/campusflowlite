@@ -2,6 +2,8 @@ import ConsiderationRequest from '../../models/ConsiderationRequest.js';
 import Student from '../../models/Student.js';
 import Teacher from '../../models/Teacher.js';
 import MentorGroup from '../../models/MentorGroup.js';
+import Section from '../../models/Section.js';
+import Department from '../../models/Department.js';
 import User from '../../models/User.js';
 import Notification from '../../models/Notification.js';
 import AuditLog from '../../models/AuditLog.js';
