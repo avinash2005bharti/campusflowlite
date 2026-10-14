@@ -5,6 +5,32 @@ import { useNavigate, Link } from 'react-router-dom';
 import { notificationApi } from '../api';
 import { formatDateTimeIST } from '../utils/constants.js';
 
+const roleEmojiMap = {
+  admin: '⚡',
+  ADMIN: '⚡',
+  hod: '🏛️',
+  HOD: '🏛️',
+  tg: '🛡️',
+  TG: '🛡️',
+  teacher: '📚',
+  TEACHER: '📚',
+  student: '🎓',
+  STUDENT: '🎓',
+};
+
+const roleTitleMap = {
+  admin: 'Administrator Portal',
+  ADMIN: 'Administrator Portal',
+  hod: 'HOD Workspace (CSE)',
+  HOD: 'HOD Workspace (CSE)',
+  tg: 'Tutor Guardian Workspace',
+  TG: 'Tutor Guardian Workspace',
+  teacher: 'Faculty Portal',
+  TEACHER: 'Faculty Portal',
+  student: 'Student Portal',
+  STUDENT: 'Student Portal',
+};
+
 export default function Header({ isSidebarOpen, onToggleSidebar }) {
   const {
     currentRole,
@@ -19,6 +45,10 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [expandedNotifId, setExpandedNotifId] = useState(null);
   const notifRef = useRef(null);
+
+  const isTeacherAndTG = Boolean(
+    currentUser?.role === 'TEACHER' && (currentUser?.isTG || currentUser?.mentorGroupId)
+  );
 
   // Close notifications on outside click or Escape key
   useEffect(() => {
