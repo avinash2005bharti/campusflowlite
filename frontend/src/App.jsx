@@ -41,6 +41,8 @@ import AdminAudit from './pages/admin/AdminAudit.jsx';
 import TeacherDashboard from './pages/teacher/TeacherDashboard.jsx';
 import TeacherLeaves from './pages/teacher/TeacherLeaves.jsx';
 
+import NotFound from './pages/NotFound.jsx';
+
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 function RoleRedirect() {
@@ -375,8 +377,8 @@ export default function App() {
         />
       </Route>
 
-      {/* Catch-all fallback */}
-      <Route path="*" element={<RoleRedirect />} />
+      {/* Catch-all fallback 404 page */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

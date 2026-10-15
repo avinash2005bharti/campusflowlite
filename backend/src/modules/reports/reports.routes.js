@@ -7,7 +7,7 @@ export const dashboardRouter = Router();
 dashboardRouter.get('/summary', auth, reportsController.getDashboardSummary);
 
 export const reportsRouter = Router();
-reportsRouter.use(auth, authorize('HOD', 'ADMIN', 'TG'));
+reportsRouter.use(auth, authorize('HOD', 'ADMIN'));
 reportsRouter.get('/considerations/export', reportsController.exportConsiderations);
 reportsRouter.get('/leaves/export', reportsController.exportLeaves);
 reportsRouter.get('/considerations', reportsController.getConsiderationsReport);

@@ -10,6 +10,9 @@ import RefreshToken from '../../models/RefreshToken.js';
 import Department from '../../models/Department.js';
 import Section from '../../models/Section.js';
 
+// Escape special regex characters in user input to prevent ReDoS
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const hashToken = (token) => {
   return crypto.createHash('sha256').update(token).digest('hex');
 };
@@ -47,14 +50,14 @@ export const login = async ({ email, password, userAgent, ip }) => {
   let user = await User.findOne({ email: query.toLowerCase(), isActive: true }).select('+passwordHash');
 
   if (!user) {
-    const student = await Student.findOne({ rollNumber: new RegExp(`^${query}$`, 'i') });
+    const student = await Student.findOne({ rollNumber: new RegExp(`^${escapeRegex(query)}$`, 'i') });
     if (student) {
       user = await User.findOne({ _id: student.user, isActive: true }).select('+passwordHash');
     }
   }
 
   if (!user) {
-    const teacher = await Teacher.findOne({ employeeId: new RegExp(`^${query}$`, 'i') });
+    const teacher = await Teacher.findOne({ employeeId: new RegExp(`^${escapeRegex(query)}$`, 'i') });
     if (teacher) {
       user = await User.findOne({ _id: teacher.user, isActive: true }).select('+passwordHash');
     }
@@ -348,13 +351,10 @@ export const registerStudent = async ({
     if (!assignedGroup) {
       assignedGroup = await MentorGroup.findOne({ department: dept._id, isActive: true });
     }
-    if (!assignedGroup) {
-      assignedGroup = await MentorGroup.findOne({ isActive: true });
-    }
     if (assignedGroup) {
       student.mentorGroup = assignedGroup._id;
       await student.save();
-      if (!assignedGroup.students.includes(student._id)) {
+      if (!assignedGroup.students.some((sId) => sId.toString() === student._id.toString())) {
         assignedGroup.students.push(student._id);
         await assignedGroup.save();
       }

@@ -3,6 +3,7 @@ import MentorGroup from '../../models/MentorGroup.js';
 import User from '../../models/User.js';
 import Department from '../../models/Department.js';
 import Section from '../../models/Section.js';
+import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 
 export const listTeachers = async (query = {}) => {
   const filter = {};
@@ -10,45 +11,73 @@ export const listTeachers = async (query = {}) => {
     filter.department = query.department;
   }
 
-  const teachers = await Teacher.find(filter)
+  const isPaginated = query.page !== undefined || query.limit !== undefined;
+  const { page, limit, skip } = parsePagination(query);
+
+  let teachersQuery = Teacher.find(filter)
     .populate('user', 'name email phone isActive profileImage')
     .populate('department', 'name code')
     .sort({ designation: 1 });
 
-  // Enrich with active TG mentor group info
-  const enriched = await Promise.all(
-    teachers.map(async (t) => {
-      const activeGroup = await MentorGroup.findOne({ tg: t._id, isActive: true })
-        .populate('section', 'name code year semester')
-        .populate({
-          path: 'students',
-          select: 'section',
-          populate: { path: 'section', select: 'name code year semester' },
-        });
+  let total = 0;
+  if (isPaginated) {
+    total = await Teacher.countDocuments(filter);
+    teachersQuery = teachersQuery.skip(skip).limit(limit);
+  }
 
-      let mentoredSection = null;
-      if (activeGroup) {
-        if (activeGroup.section) {
-          const sem = activeGroup.section.semester || activeGroup.semester;
-          const code = activeGroup.section.code || activeGroup.section.name;
-          mentoredSection = sem ? `Semester ${sem} • ${code}` : code;
-        } else if (activeGroup.students?.length > 0 && activeGroup.students[0].section) {
-          const sec = activeGroup.students[0].section;
-          mentoredSection = `Semester ${sec.semester || 5} • ${sec.code || sec.name}`;
-        } else if (activeGroup.semester) {
-          mentoredSection = `Semester ${activeGroup.semester}`;
-        }
+  const teachers = await teachersQuery;
+
+  // PERF-02: Single bulk query for active MentorGroups instead of N+1 queries
+  const teacherIds = teachers.map((t) => t._id);
+  const activeGroups = await MentorGroup.find({
+    tg: { $in: teacherIds },
+    isActive: true,
+  })
+    .populate('section', 'name code year semester')
+    .populate({
+      path: 'students',
+      select: 'section',
+      populate: { path: 'section', select: 'name code year semester' },
+    });
+
+  const groupMap = new Map();
+  for (const group of activeGroups) {
+    if (group.tg) {
+      groupMap.set(group.tg.toString(), group);
+    }
+  }
+
+  const enriched = teachers.map((t) => {
+    const activeGroup = groupMap.get(t._id.toString()) || null;
+    let mentoredSection = null;
+    if (activeGroup) {
+      if (activeGroup.section) {
+        const sem = activeGroup.section.semester || activeGroup.semester;
+        const code = activeGroup.section.code || activeGroup.section.name;
+        mentoredSection = sem ? `Semester ${sem} • ${code}` : code;
+      } else if (activeGroup.students?.length > 0 && activeGroup.students[0].section) {
+        const sec = activeGroup.students[0].section;
+        mentoredSection = `Semester ${sec.semester || 5} • ${sec.code || sec.name}`;
+      } else if (activeGroup.semester) {
+        mentoredSection = `Semester ${activeGroup.semester}`;
       }
+    }
 
-      return {
-        ...t.toObject(),
-        isTG: Boolean(activeGroup),
-        mentorGroupId: activeGroup ? activeGroup._id : null,
-        activeGroup: activeGroup ? activeGroup.toObject() : null,
-        mentoredSection,
-      };
-    })
-  );
+    return {
+      ...t.toObject(),
+      isTG: Boolean(activeGroup),
+      mentorGroupId: activeGroup ? activeGroup._id : null,
+      activeGroup: activeGroup ? activeGroup.toObject() : null,
+      mentoredSection,
+    };
+  });
+
+  if (isPaginated) {
+    return {
+      teachers: enriched,
+      meta: buildPaginationMeta(total, page, limit),
+    };
+  }
 
   return enriched;
 };

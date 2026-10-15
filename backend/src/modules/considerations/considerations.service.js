@@ -58,18 +58,6 @@ export const resolveStudentTG = async (student) => {
     }
   }
 
-  // 3. Fallback to any active mentor group
-  const anyGroup = await MentorGroup.findOne({ isActive: true });
-  if (anyGroup) {
-    student.mentorGroup = anyGroup._id;
-    await student.save();
-    if (!anyGroup.students.some((sId) => sId.toString() === student._id.toString())) {
-      anyGroup.students.push(student._id);
-      await anyGroup.save();
-    }
-    return anyGroup.tg;
-  }
-
   return null;
 };
 
@@ -238,29 +226,46 @@ export const getTGQueue = async (user, query) => {
   };
 };
 
-export const getHODQueue = async (query = {}) => {
+export const getHODQueue = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
-  const filter = {};
+  const conditions = [];
 
   if (query.all === 'true' || query.status === 'ALL') {
     // Return all department records without restricting to action queue
   } else if (query.status === 'ACTION_NEEDED' || (!query.all && !query.status)) {
-    filter.$or = [
-      { status: 'RECOMMENDED_BY_TG' },
-      { status: 'PENDING', escalated: true },
-      { status: 'PENDING', tg: null },
-    ];
+    conditions.push({
+      $or: [
+        { status: 'RECOMMENDED_BY_TG' },
+        { status: 'PENDING', escalated: true },
+        { status: 'PENDING', tg: null },
+      ],
+    });
   } else if (query.status === 'APPROVED' || query.status === 'APPROVED_BY_HOD') {
-    filter.status = 'APPROVED_BY_HOD';
+    conditions.push({ status: 'APPROVED_BY_HOD' });
   } else if (query.status === 'REJECTED') {
-    filter.status = { $in: ['REJECTED', 'REJECTED_BY_HOD', 'REJECTED_BY_TG'] };
+    conditions.push({ status: { $in: ['REJECTED', 'REJECTED_BY_HOD', 'REJECTED_BY_TG'] } });
   } else if (query.status) {
-    filter.status = query.status.toUpperCase();
+    conditions.push({ status: query.status.toUpperCase() });
   }
 
   if (query.type && query.type !== 'ALL') {
-    filter.eventType = query.type.toUpperCase();
+    conditions.push({ eventType: query.type.toUpperCase() });
   }
+
+  // BKD-01 Department Scoping:
+  let targetDepartment = null;
+  if (user?.role === 'HOD') {
+    targetDepartment = user.departmentId;
+  } else if (query.department) {
+    targetDepartment = query.department;
+  }
+
+  if (targetDepartment) {
+    const deptStudents = await Student.find({ department: targetDepartment }).select('_id');
+    conditions.push({ student: { $in: deptStudents.map((s) => s._id) } });
+  }
+
+  const filter = conditions.length > 0 ? { $and: conditions } : {};
 
   const [requests, total] = await Promise.all([
     ConsiderationRequest.find(filter)
@@ -472,6 +477,11 @@ export const hodReview = async (id, user, { decision, remarks, approvedPeriods }
   // Prevent self-review (applicant == reviewer)
   if (request.student?.user?.toString() === user.id) {
     throw ApiError.forbidden('You cannot review your own request');
+  }
+
+  // BKD-01: HOD can only review requests from their own department
+  if (user.role === 'HOD' && user.departmentId && request.student?.department?.toString() !== user.departmentId) {
+    throw ApiError.forbidden('You are only authorized to review requests from your department');
   }
 
   // Allowed transitions: status must be RECOMMENDED_BY_TG, OR request must be escalated, OR unassigned TG pending

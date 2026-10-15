@@ -84,31 +84,6 @@ export function ERPProvider({ children }) {
 
   // Sync / Verify current user session on mount
   const checkSession = useCallback(async () => {
-    // Check if query param ?auth_bypass=hod is passed (useful for screenshot verification)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('auth_bypass') === 'hod' && !getAuthToken()) {
-      try {
-        const loginRes = await fetch('/api/v1/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'hod@campusflow.edu', password: 'Password@123' }),
-        });
-        const loginData = await loginRes.json();
-        if (loginData.success && loginData.data?.accessToken) {
-          localStorage.setItem('campusflow_token', loginData.data.accessToken);
-          localStorage.setItem('campusflow_role', 'hod');
-          localStorage.setItem('campusflow_user', JSON.stringify(loginData.data.user));
-          setCurrentUser(loginData.data.user);
-          setCurrentRole('hod');
-          setIsAuthenticated(true);
-          setLoadingAuth(false);
-          return;
-        }
-      } catch (err) {
-        console.warn('Auth bypass failed', err);
-      }
-    }
-
     const storedToken = getAuthToken();
     if (!storedToken) {
       setLoadingAuth(false);

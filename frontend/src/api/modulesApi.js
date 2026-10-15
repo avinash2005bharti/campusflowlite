@@ -24,7 +24,8 @@ export const reportApi = {
       params,
       responseType: 'blob',
     });
-    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const blob = res instanceof Blob ? res : (res?.data instanceof Blob ? res.data : new Blob([res?.data || res]));
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `considerations_report_${Date.now()}.xlsx`);
@@ -39,7 +40,8 @@ export const reportApi = {
       params,
       responseType: 'blob',
     });
-    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const blob = res instanceof Blob ? res : (res?.data instanceof Blob ? res.data : new Blob([res?.data || res]));
+    const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.setAttribute('download', `leaves_report_${Date.now()}.xlsx`);

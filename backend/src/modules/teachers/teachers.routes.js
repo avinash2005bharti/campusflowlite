@@ -12,8 +12,11 @@ router.get(
   auth,
   authorize('HOD', 'ADMIN'),
   asyncHandler(async (req, res) => {
-    const teachers = await teachersService.listTeachers(req.query);
-    return sendSuccess(res, teachers);
+    const result = await teachersService.listTeachers(req.query);
+    if (result && result.teachers) {
+      return sendSuccess(res, result.teachers, result.meta);
+    }
+    return sendSuccess(res, result);
   })
 );
 

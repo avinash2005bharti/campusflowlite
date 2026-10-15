@@ -1,8 +1,32 @@
-export const sendSuccess = (res, data = {}, meta = null, statusCode = 200) => {
+export const sendSuccess = (res, data = {}, metaOrMsgOrStatus = null, maybeStatus = 200) => {
+  let meta = null;
+  let message = null;
+  let statusCode = 200;
+
+  if (typeof metaOrMsgOrStatus === 'number') {
+    statusCode = metaOrMsgOrStatus;
+  } else if (typeof metaOrMsgOrStatus === 'string') {
+    message = metaOrMsgOrStatus;
+    if (typeof maybeStatus === 'number') {
+      statusCode = maybeStatus;
+    }
+  } else if (typeof metaOrMsgOrStatus === 'object' && metaOrMsgOrStatus !== null) {
+    meta = metaOrMsgOrStatus;
+    if (typeof maybeStatus === 'number') {
+      statusCode = maybeStatus;
+    }
+  } else if (typeof maybeStatus === 'number') {
+    statusCode = maybeStatus;
+  }
+
   const payload = {
     success: true,
     data,
   };
+
+  if (message) {
+    payload.message = message;
+  }
 
   if (meta !== null && meta !== undefined) {
     payload.meta = meta;

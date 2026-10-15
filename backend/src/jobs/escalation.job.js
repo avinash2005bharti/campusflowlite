@@ -72,6 +72,19 @@ export const runEscalationScan = async (mockClock = null) => {
         emitNotification(hod._id.toString(), notif);
       }
 
+      // Notify assigned TG of escalation
+      if (req.tg && req.tg.user) {
+        const tgNotif = await Notification.create({
+          user: req.tg.user,
+          title: 'Consideration Request Escalated',
+          message: `The consideration request for "${req.eventTitle}" was escalated to HOD due to timeout or absence.`,
+          type: 'ESCALATION',
+          link: `/tg/considerations/${req._id}`,
+          isRead: false,
+        });
+        emitNotification(req.tg.user.toString(), tgNotif);
+      }
+
       await AuditLog.create({
         actor: null,
         action: 'ESCALATE_CONSIDERATION',
@@ -118,6 +131,19 @@ export const runEscalationScan = async (mockClock = null) => {
         emitNotification(hod._id.toString(), notif);
       }
 
+      // Notify assigned TG of escalation
+      if (leave.tg && leave.tg.user) {
+        const tgNotif = await Notification.create({
+          user: leave.tg.user,
+          title: 'Leave Application Escalated',
+          message: 'A student leave application assigned to you was escalated to HOD due to timeout or absence.',
+          type: 'ESCALATION',
+          link: `/tg/leaves/${leave._id}`,
+          isRead: false,
+        });
+        emitNotification(leave.tg.user.toString(), tgNotif);
+      }
+
       await AuditLog.create({
         actor: null,
         action: 'ESCALATE_LEAVE',
@@ -129,6 +155,7 @@ export const runEscalationScan = async (mockClock = null) => {
 
     if (pendingConsiderations.length > 0 || pendingLeaves.length > 0) {
       emitQueueChanged('HOD', 'ESCALATION');
+      emitQueueChanged('TG', 'ESCALATION');
       console.log(`[EscalationJob] Escalated ${pendingConsiderations.length} considerations and ${pendingLeaves.length} leaves.`);
     }
   } catch (error) {

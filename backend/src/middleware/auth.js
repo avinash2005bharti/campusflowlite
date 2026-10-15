@@ -43,6 +43,7 @@ export const auth = async (req, res, next) => {
       teacherId: null,
       studentId: null,
       mentorGroupId: null,
+      departmentId: null,
     };
 
     // If TEACHER or HOD, check Teacher profile and TG mentor status
@@ -50,6 +51,7 @@ export const auth = async (req, res, next) => {
       const teacherProfile = await Teacher.findOne({ user: user._id });
       if (teacherProfile) {
         req.user.teacherId = teacherProfile._id.toString();
+        req.user.departmentId = teacherProfile.department ? teacherProfile.department.toString() : null;
 
         // Check if teacher leads an active MentorGroup
         const activeGroup = await MentorGroup.findOne({ tg: teacherProfile._id, isActive: true });
@@ -65,6 +67,7 @@ export const auth = async (req, res, next) => {
       const studentProfile = await Student.findOne({ user: user._id });
       if (studentProfile) {
         req.user.studentId = studentProfile._id.toString();
+        req.user.departmentId = studentProfile.department ? studentProfile.department.toString() : null;
         req.user.mentorGroupId = studentProfile.mentorGroup ? studentProfile.mentorGroup.toString() : null;
       }
     }

@@ -249,31 +249,57 @@ export const getTGLeaveQueue = async (user, query) => {
   };
 };
 
-export const getHODLeaveQueue = async (query = {}) => {
+export const getHODLeaveQueue = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
-  const filter = {};
+  const conditions = [];
+
   if (query.all === 'true' || query.status === 'ALL') {
     // Return all student and faculty department leaves
   } else if (query.status === 'ACTION_NEEDED' || (!query.all && !query.status)) {
-    filter.$or = [
-      { applicantRole: 'STUDENT', status: 'RECOMMENDED_BY_TG' },
-      { applicantRole: 'STUDENT', status: 'PENDING', escalated: true },
-      { applicantRole: 'STUDENT', status: 'PENDING', tg: null },
-      { applicantRole: 'TEACHER', status: 'PENDING' },
-    ];
+    conditions.push({
+      $or: [
+        { applicantRole: 'STUDENT', status: 'RECOMMENDED_BY_TG' },
+        { applicantRole: 'STUDENT', status: 'PENDING', escalated: true },
+        { applicantRole: 'STUDENT', status: 'PENDING', tg: null },
+        { applicantRole: 'TEACHER', status: 'PENDING' },
+      ],
+    });
   } else if (query.status === 'APPROVED' || query.status === 'APPROVED_BY_HOD') {
-    filter.status = { $in: ['APPROVED', 'APPROVED_BY_HOD'] };
+    conditions.push({ status: { $in: ['APPROVED', 'APPROVED_BY_HOD'] } });
   } else if (query.status === 'REJECTED') {
-    filter.status = 'REJECTED';
+    conditions.push({ status: 'REJECTED' });
   } else if (query.status) {
-    filter.status = query.status.toUpperCase();
+    conditions.push({ status: query.status.toUpperCase() });
   }
 
   if (query.roleFilter && query.roleFilter !== 'ALL') {
-    filter.applicantRole = query.roleFilter.toUpperCase();
+    conditions.push({ applicantRole: query.roleFilter.toUpperCase() });
   } else if (query.role && query.role !== 'ALL') {
-    filter.applicantRole = query.role.toUpperCase();
+    conditions.push({ applicantRole: query.role.toUpperCase() });
   }
+
+  // BKD-02 Department scoping
+  let targetDepartment = null;
+  if (user?.role === 'HOD') {
+    targetDepartment = user.departmentId;
+  } else if (query.department) {
+    targetDepartment = query.department;
+  }
+
+  if (targetDepartment) {
+    const [deptStudents, deptTeachers] = await Promise.all([
+      Student.find({ department: targetDepartment }).select('_id'),
+      Teacher.find({ department: targetDepartment }).select('_id'),
+    ]);
+    conditions.push({
+      $or: [
+        { student: { $in: deptStudents.map((s) => s._id) } },
+        { teacher: { $in: deptTeachers.map((t) => t._id) } },
+      ],
+    });
+  }
+
+  const filter = conditions.length > 0 ? { $and: conditions } : {};
 
   const [leaves, total] = await Promise.all([
     LeaveApplication.find(filter)
@@ -519,6 +545,21 @@ export const finalReviewLeave = async (id, user, { decision, remarks }) => {
   // Prevent self-review
   if (leave.applicant.toString() === user.id) {
     throw ApiError.forbidden('You cannot review your own leave application');
+  }
+
+  // BKD-02: HOD department scope check
+  if (user.role === 'HOD' && user.departmentId) {
+    if (leave.applicantRole === 'STUDENT' && leave.student) {
+      const student = await Student.findById(leave.student);
+      if (student && student.department?.toString() !== user.departmentId) {
+        throw ApiError.forbidden('You are only authorized to review leaves from your department');
+      }
+    } else if (leave.applicantRole === 'TEACHER' && leave.teacher) {
+      const teacher = await Teacher.findById(leave.teacher);
+      if (teacher && teacher.department?.toString() !== user.departmentId) {
+        throw ApiError.forbidden('You are only authorized to review leaves from your department');
+      }
+    }
   }
 
   const before = leave.toObject();

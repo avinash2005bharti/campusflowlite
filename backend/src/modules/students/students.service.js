@@ -4,6 +4,9 @@ import Section from '../../models/Section.js';
 import Department from '../../models/Department.js';
 import MentorGroup from '../../models/MentorGroup.js';
 import Teacher from '../../models/Teacher.js';
+import ConsiderationRequest from '../../models/ConsiderationRequest.js';
+import LeaveApplication from '../../models/LeaveApplication.js';
+import Notification from '../../models/Notification.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 
 export const listStudents = async (query) => {
@@ -120,6 +123,18 @@ export const deleteStudent = async (id) => {
     throw new Error('Student not found');
   }
   const userId = student.user;
+
+  // SEC-06 Cascade cleanup
+  await ConsiderationRequest.deleteMany({ student: id });
+  await LeaveApplication.deleteMany({ student: id });
+  await MentorGroup.updateMany(
+    { students: id },
+    { $pull: { students: id } }
+  );
+  if (userId) {
+    await Notification.deleteMany({ user: userId });
+  }
+
   await Student.findByIdAndDelete(id);
   if (userId) {
     await User.findByIdAndDelete(userId);

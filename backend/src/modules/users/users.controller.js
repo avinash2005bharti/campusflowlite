@@ -23,7 +23,8 @@ export const updateUser = asyncHandler(async (req, res) => {
 });
 
 export const resetPassword = asyncHandler(async (req, res) => {
-  const result = await usersService.resetPassword(req.params.id, req.body.password);
+  const customPassword = req.body.password || req.body.customPassword;
+  const result = await usersService.resetPassword(req.params.id, customPassword);
   return sendSuccess(res, result);
 });
 

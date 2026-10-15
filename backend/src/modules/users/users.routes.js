@@ -5,14 +5,16 @@ import authorize from '../../middleware/authorize.js';
 
 const router = Router();
 
-// All routes require ADMIN or HOD role (TG can also trigger password reset)
-router.use(auth, authorize('ADMIN', 'HOD', 'TG'));
+// All routes require authentication
+router.use(auth);
 
-router.get('/', usersController.listUsers);
-router.post('/', usersController.createUser);
-router.get('/:id', usersController.getUserById);
-router.patch('/:id', usersController.updateUser);
-router.post('/:id/reset-password', usersController.resetPassword);
-router.patch('/:id/status', usersController.updateStatus);
+// ADMIN and HOD have full user management access
+router.get('/', authorize('ADMIN', 'HOD'), usersController.listUsers);
+router.post('/', authorize('ADMIN', 'HOD'), usersController.createUser);
+router.get('/:id', authorize('ADMIN', 'HOD', 'TG'), usersController.getUserById);
+router.patch('/:id', authorize('ADMIN', 'HOD'), usersController.updateUser);
+// TG can reset passwords for their mentees, ADMIN/HOD for any user
+router.post('/:id/reset-password', authorize('ADMIN', 'HOD', 'TG'), usersController.resetPassword);
+router.patch('/:id/status', authorize('ADMIN', 'HOD'), usersController.updateStatus);
 
 export default router;

@@ -18,7 +18,7 @@ export const getTGQueue = asyncHandler(async (req, res) => {
 });
 
 export const getHODQueue = asyncHandler(async (req, res) => {
-  const result = await leavesService.getHODLeaveQueue(req.query);
+  const result = await leavesService.getHODLeaveQueue(req.query, req.user);
   return sendSuccess(res, result.leaves, result.meta);
 });
 
