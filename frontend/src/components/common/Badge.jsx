@@ -27,10 +27,10 @@ export default function Badge({
 
   const sizeStyle =
     size === 'xs'
-      ? { fontSize: '10px', padding: '0.1rem 0.45rem', borderRadius: '9999px', fontWeight: 700 }
+      ? { fontSize: '12px', padding: '0.2rem 0.55rem', borderRadius: '9999px', fontWeight: 700 }
       : size === 'sm'
-      ? { fontSize: '11px', padding: '0.15rem 0.5rem' }
-      : {};
+      ? { fontSize: '13px', padding: '0.25rem 0.65rem', borderRadius: '9999px', fontWeight: 600 }
+      : { fontSize: '13px', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontWeight: 600 };
 
   const formatChildren = (content) => {
     if (typeof content !== 'string') return content;

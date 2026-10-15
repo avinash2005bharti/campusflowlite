@@ -150,13 +150,13 @@ export default function TeacherRegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="font-bold text-slate-700 block mb-1">
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
                 Full Official Name <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   name="name"
@@ -164,17 +164,17 @@ export default function TeacherRegisterPage() {
                   onChange={handleChange}
                   placeholder="e.g. Dr. Preeti Sharma"
                   required
-                  className="input-field pl-9 w-full text-xs"
+                  className="input-field pl-11 w-full text-sm font-medium"
                 />
               </div>
             </div>
 
             <div>
-              <label className="font-bold text-slate-700 block mb-1">
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">
                 Institutional Email Address <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="email"
                   name="email"
@@ -182,14 +182,14 @@ export default function TeacherRegisterPage() {
                   onChange={handleChange}
                   placeholder="e.g. preeti.cse@oriental.ac.in"
                   required
-                  className="input-field pl-9 w-full text-xs"
+                  className="input-field pl-11 w-full text-sm font-medium"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
                   Employee ID <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -199,17 +199,17 @@ export default function TeacherRegisterPage() {
                   onChange={handleChange}
                   placeholder="e.g. EMP_CSE_08"
                   required
-                  className="input-field w-full text-xs font-mono uppercase"
+                  className="input-field w-full text-sm font-mono uppercase"
                 />
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Designation</label>
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">Designation</label>
                 <select
                   name="designation"
                   value={formData.designation}
                   onChange={handleChange}
-                  className="form-select w-full bg-white border-slate-200 rounded-xl py-2 px-3 text-xs"
+                  className="input-field w-full text-sm font-medium cursor-pointer"
                 >
                   <option value="Assistant Professor">Assistant Professor</option>
                   <option value="Associate Professor">Associate Professor</option>
@@ -220,27 +220,27 @@ export default function TeacherRegisterPage() {
             </div>
 
             <div>
-              <label className="font-bold text-slate-700 block mb-1">Phone Number</label>
+              <label className="text-xs font-bold text-slate-700 block mb-1.5">Phone Number</label>
               <div className="relative">
-                <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   name="phone"
                   value={formData.phone}
                   onChange={handleChange}
                   placeholder="+91..."
-                  className="input-field pl-9 w-full text-xs font-mono"
+                  className="input-field pl-11 w-full text-sm font-mono"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
               <div>
-                <label className="font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
                   Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="password"
@@ -248,24 +248,25 @@ export default function TeacherRegisterPage() {
                     onChange={handleChange}
                     required
                     placeholder="Min. 6 characters"
-                    className="input-field pl-9 pr-9 w-full text-xs"
+                    className="input-field pl-11 pr-11 w-full text-sm font-medium"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                    aria-label="Toggle password visibility"
                   >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 block mb-1">
+                <label className="text-xs font-bold text-slate-700 block mb-1.5">
                   Confirm Password <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     name="confirmPassword"
@@ -273,7 +274,7 @@ export default function TeacherRegisterPage() {
                     onChange={handleChange}
                     required
                     placeholder="Re-enter password"
-                    className="input-field pl-9 w-full text-xs"
+                    className="input-field pl-11 w-full text-sm font-medium"
                   />
                 </div>
               </div>
@@ -284,7 +285,7 @@ export default function TeacherRegisterPage() {
               size="lg"
               fullWidth
               loading={loading}
-              className="mt-4 font-black shadow-sm"
+              className="mt-4 font-bold min-h-[48px] text-sm shadow-sm"
             >
               Register Faculty Account
             </Button>

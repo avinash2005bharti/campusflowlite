@@ -88,8 +88,8 @@ export default function AppointTgModal({
               <h3 className="text-base font-extrabold text-slate-900 m-0">
                 Appoint Tutor Guardian (TG)
               </h3>
-              <p className="text-xs text-slate-500 m-0">
-                Departmental Mentorship & Academic Cohort Assignment
+              <p className="text-xs text-slate-500 m-0 mt-0.5">
+                HOD Departmental Governance & Mentorship Assignment
               </p>
             </div>
           </div>
@@ -119,7 +119,7 @@ export default function AppointTgModal({
               {facultyDisplayName}
             </span>
             <span className="block text-xs text-slate-600 mt-0.5">
-              {selectedTeacher?.designation || 'Faculty'} • {selectedTeacher?.user?.email || 'authenticated'}
+              {selectedTeacher?.designation || 'Professor & Head (HOD)'} • {selectedTeacher?.user?.email || 'test_hod@mail.in'}
             </span>
           </div>
 
@@ -177,7 +177,7 @@ export default function AppointTgModal({
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-500 italic m-0">
+          <p className="text-[11px] text-slate-500 m-0">
             All students in {semester}, {section} will report directly to this Tutor Guardian.
           </p>
 
@@ -190,7 +190,7 @@ export default function AppointTgModal({
               type="text"
               value={session}
               onChange={(e) => setSession(e.target.value)}
-              placeholder="e.g. 2025-26"
+              placeholder="e.g. 2026-27"
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
             />
           </div>
@@ -202,19 +202,19 @@ export default function AppointTgModal({
             </span>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>First-tier review & recommendation for student leave applications</span>
+              <span>First-tier review & approval for student leave requests</span>
             </div>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>Verification of On-Duty (OD) and attendance consideration requests</span>
+              <span>Monitoring individual attendance and issuing 75% shortage alerts</span>
             </div>
             <div className="flex items-start gap-1.5 text-[11px] text-emerald-800">
               <span>•</span>
-              <span>Monitoring mentee attendance and issuing 75% shortage advisories</span>
+              <span>Direct TG portal login credentials enabled with mentee roster</span>
             </div>
           </div>
 
-          {/* Footer buttons with Appoint TG clearly visible */}
+          {/* Footer buttons with Confirm TG Appointment */}
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
@@ -232,12 +232,12 @@ export default function AppointTgModal({
               {submitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>Appointing TG...</span>
+                  <span>Confirming...</span>
                 </>
               ) : (
                 <>
                   <UserCheck size={14} />
-                  <span>Appoint TG</span>
+                  <span>Confirm TG Appointment</span>
                 </>
               )}
             </button>

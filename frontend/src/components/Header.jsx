@@ -6,29 +6,19 @@ import { notificationApi } from '../api';
 import { formatDateTimeIST } from '../utils/constants.js';
 
 const roleEmojiMap = {
-  admin: '⚡',
-  ADMIN: '⚡',
-  hod: '🏛️',
-  HOD: '🏛️',
-  tg: '🛡️',
-  TG: '🛡️',
-  teacher: '📚',
-  TEACHER: '📚',
   student: '🎓',
-  STUDENT: '🎓',
+  teacher: '👨‍🏫',
+  tg: '🛡️',
+  hod: '🏛️',
+  admin: '👑',
 };
 
 const roleTitleMap = {
-  admin: 'Administrator Portal',
-  ADMIN: 'Administrator Portal',
-  hod: 'HOD Workspace (CSE)',
-  HOD: 'HOD Workspace (CSE)',
-  tg: 'Tutor Guardian Workspace',
-  TG: 'Tutor Guardian Workspace',
-  teacher: 'Faculty Portal',
-  TEACHER: 'Faculty Portal',
   student: 'Student Portal',
-  STUDENT: 'Student Portal',
+  teacher: 'Faculty Portal',
+  tg: 'Mentor / TG Desk',
+  hod: 'HOD Administration',
+  admin: 'System Administrator',
 };
 
 export default function Header({ isSidebarOpen, onToggleSidebar }) {
@@ -46,9 +36,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
   const [expandedNotifId, setExpandedNotifId] = useState(null);
   const notifRef = useRef(null);
 
-  const isTeacherAndTG = Boolean(
-    currentUser?.role === 'TEACHER' && (currentUser?.isTG || currentUser?.mentorGroupId)
-  );
+  const isTeacherAndTG = Boolean(currentUser?.isTG || currentUser?.mentorGroupId);
 
   // Close notifications on outside click or Escape key
   useEffect(() => {
@@ -124,7 +112,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
               />
             </div>
             <div className="flex flex-col">
-              <span className="font-heading text-sm font-extrabold text-slate-900 leading-tight">
+              <span className="font-heading text-base font-extrabold text-slate-900 leading-tight">
                 OIST CSE
               </span>
               <span className="text-xs text-blue-700 font-bold leading-none">
@@ -136,18 +124,18 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
         {/* Center: Role Badge */}
         <div className="hidden md:flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full shadow-xs">
+          <div className="flex items-center gap-2 px-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-full shadow-xs">
             <span className="text-sm shrink-0">{roleEmojiMap[currentRole] || '🎓'}</span>
             <div className="flex flex-col text-left">
-              <span className="text-xs font-bold text-slate-900 leading-tight">
+              <span className="text-sm font-bold text-slate-900 leading-tight">
                 {roleTitleMap[currentRole] || 'Academic Portal'}
               </span>
-              <span className="text-[10px] text-slate-500 leading-none">
+              <span className="text-xs text-slate-600 leading-none mt-0.5">
                 {currentUser?.name || 'Verified User'}
               </span>
             </div>
-            <span className="badge badge-indigo text-[10px] ml-1 py-0.5 px-2">
-              <ShieldCheck size={10} className="mr-0.5 inline" />
+            <span className="badge badge-indigo text-xs ml-1 py-0.5 px-2 font-bold">
+              <ShieldCheck size={11} className="mr-0.5 inline" />
               Verified
             </span>
           </div>
@@ -169,8 +157,19 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
           )}
         </div>
 
-        {/* Right: Notification Bell & Profile */}
+        {/* Right: Actions, Notification Bell & Profile */}
         <div className="flex items-center gap-2">
+          {/* Teacher Dashboard link for TG Portal matching tg dashboard.png */}
+          {(currentRole === 'tg' || isTeacherAndTG) && (
+            <Link
+              to="/teacher"
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50/70 rounded-xl border border-blue-200/80 transition-colors no-underline cursor-pointer mr-1"
+            >
+              <span>Teacher Dashboard</span>
+              <ArrowRight size={13} />
+            </Link>
+          )}
+
           {/* Notification Bell with Dropdown */}
           <div className="relative" ref={notifRef}>
             <button
@@ -258,14 +257,14 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
           {/* User Name & Logout */}
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <div className="hidden sm:flex flex-col text-right max-w-[140px]">
+            <div className="hidden sm:flex flex-col text-right max-w-[160px]">
               <span
-                className="text-xs font-bold text-slate-900 leading-tight truncate"
+                className="text-sm font-bold text-slate-900 leading-tight truncate"
                 title={currentUser?.name || currentUser?.designation || 'User'}
               >
                 {currentUser?.name || currentUser?.designation || 'User'}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider truncate">
+              <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider truncate mt-0.5">
                 {currentUser?.designation || currentUser?.role || currentRole}
               </span>
             </div>

@@ -137,7 +137,7 @@ export default function HodLeaves() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 font-sans">
+    <div className="flex flex-col gap-6 w-full min-w-0 font-sans">
       <PageHeader
         title="Leave Approvals"
         description="Review student leave applications after the Teacher Guardian's recommendation and process faculty leave requests."
@@ -145,9 +145,9 @@ export default function HodLeaves() {
           <Button
             variant="secondary"
             onClick={() => openModal('EXPORT_REPORTS')}
-            className="text-xs"
+            className="min-h-[40px] text-sm font-semibold"
           >
-            <Download size={14} />
+            <Download size={15} />
             Export Leaves
           </Button>
         }
@@ -155,54 +155,54 @@ export default function HodLeaves() {
 
       {/* Role Tabs */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
           <button
             onClick={() => setActiveRoleTab('ALL')}
-            className={`btn btn-sm text-xs font-bold px-3.5 py-1.5 cursor-pointer transition-all ${
+            className={`min-h-[40px] text-sm font-bold px-4 py-2 rounded-xl cursor-pointer transition-all ${
               activeRoleTab === 'ALL'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
             All Requests ({items.length})
           </button>
           <button
             onClick={() => setActiveRoleTab('STUDENT')}
-            className={`btn btn-sm text-xs font-bold px-3.5 py-1.5 flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`min-h-[40px] text-sm font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all ${
               activeRoleTab === 'STUDENT'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <Users size={14} />
+            <Users size={15} />
             Students ({items.filter((i) => i.applicantRole === 'STUDENT').length})
           </button>
           <button
             onClick={() => setActiveRoleTab('TEACHER')}
-            className={`btn btn-sm text-xs font-bold px-3.5 py-1.5 flex items-center gap-1.5 cursor-pointer transition-all ${
+            className={`min-h-[40px] text-sm font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer transition-all ${
               activeRoleTab === 'TEACHER'
                 ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
             }`}
           >
-            <UserCheck size={14} />
+            <UserCheck size={15} />
             Faculty ({items.filter((i) => i.applicantRole === 'TEACHER').length})
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 flex-1 sm:w-64">
-            <Search size={15} className="text-slate-400 shrink-0" />
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl min-h-[44px] px-3.5 py-2 flex-1 sm:w-64">
+            <Search size={16} className="text-slate-400 shrink-0" />
             <input
               type="text"
               placeholder="Search applicant name, email, roll..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="text-xs border-none p-0 focus:outline-none w-full text-slate-800"
+              className="text-sm border-none p-0 focus:outline-none w-full text-slate-800 font-medium"
             />
           </div>
 
-          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl text-xs">
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs min-h-[44px]">
             {[
               { id: 'ACTION_NEEDED', label: 'Pending' },
               { id: 'ALL', label: 'All' },
@@ -212,8 +212,8 @@ export default function HodLeaves() {
               <button
                 key={tab.id}
                 onClick={() => setFilterMode(tab.id)}
-                className={`px-2.5 py-1 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${
-                  filterMode === tab.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                  filterMode === tab.id ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {tab.label}

@@ -53,6 +53,38 @@ export const listTeachers = async (query = {}) => {
   return enriched;
 };
 
+export const updateTeacher = async (id, updateData = {}) => {
+  const teacher = await Teacher.findById(id).populate('user');
+  if (!teacher) {
+    const error = new Error('Faculty member not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  if (updateData.employeeId) teacher.employeeId = updateData.employeeId.trim();
+  if (updateData.designation) teacher.designation = updateData.designation.trim();
+  if (updateData.specialization !== undefined) teacher.specialization = updateData.specialization.trim();
+  await teacher.save();
+
+  if (teacher.user) {
+    if (updateData.name) teacher.user.name = updateData.name.trim();
+    if (updateData.email) teacher.user.email = updateData.email.trim().toLowerCase();
+    if (updateData.phone !== undefined) teacher.user.phone = updateData.phone.trim();
+    if (updateData.status) {
+      teacher.user.isActive = updateData.status === 'ACTIVE';
+    }
+    await teacher.user.save();
+  }
+
+  // Handle TG toggle if explicitly false
+  if (updateData.isTG === false) {
+    await MentorGroup.updateMany({ tg: teacher._id }, { isActive: false });
+  }
+
+  return teacher;
+};
+
 export default {
   listTeachers,
+  updateTeacher,
 };

@@ -22,13 +22,13 @@ export default function PageHeader({
           </div>
         )}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight m-0">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight m-0">
             {title}
           </h1>
           {badge && <div className="shrink-0">{badge}</div>}
         </div>
         {description && (
-          <p className="text-xs text-slate-500 mt-1 mb-0 leading-normal max-w-3xl">
+          <p className="text-sm text-slate-600 mt-1.5 mb-0 leading-normal max-w-3xl">
             {description}
           </p>
         )}

@@ -103,6 +103,10 @@ export const masterDataApi = {
     return apiClient.get('/teachers', { params });
   },
 
+  updateTeacher: async (id, data) => {
+    return apiClient.patch(`/teachers/${id}`, data);
+  },
+
   getSections: async (params = {}) => {
     return apiClient.get('/sections', { params });
   },

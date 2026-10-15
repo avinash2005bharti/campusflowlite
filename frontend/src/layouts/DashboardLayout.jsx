@@ -37,7 +37,7 @@ export default function DashboardLayout() {
           onToggleSidebar={handleToggleSidebar}
         />
 
-        <main className="content-container p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="content-container p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full min-w-0">
           <Outlet />
         </main>
       </div>

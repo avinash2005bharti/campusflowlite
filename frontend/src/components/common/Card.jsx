@@ -44,7 +44,7 @@ export function CardTitle({
   const Component = as;
   return (
     <Component
-      className={`text-base font-bold text-slate-900 tracking-tight leading-snug m-0 ${className}`.trim()}
+      className={`text-lg sm:text-xl font-bold text-slate-900 tracking-tight leading-snug m-0 ${className}`.trim()}
       {...props}
     >
       {children}
@@ -59,7 +59,7 @@ export function CardDescription({
 }) {
   return (
     <p
-      className={`text-xs text-slate-500 mt-1 mb-0 leading-normal ${className}`.trim()}
+      className={`text-sm text-slate-600 mt-1 mb-0 leading-normal ${className}`.trim()}
       {...props}
     >
       {children}
@@ -86,7 +86,7 @@ export function CardFooter({
 }) {
   return (
     <div
-      className={`flex items-center justify-between gap-3 pt-3 mt-4 border-t border-slate-200 text-xs text-slate-500 ${className}`.trim()}
+      className={`flex items-center justify-between gap-3 pt-3 mt-4 border-t border-slate-200 text-sm text-slate-600 ${className}`.trim()}
       {...props}
     >
       {children}

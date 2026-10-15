@@ -3,7 +3,7 @@ import React from 'react';
 export function Table({ children, className = '', ...props }) {
   return (
     <div className="table-responsive w-full overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-xs">
-      <table className={`w-full text-left border-collapse text-xs md:text-sm ${className}`.trim()} {...props}>
+      <table className={`w-full text-left border-collapse text-sm ${className}`.trim()} {...props}>
         {children}
       </table>
     </div>
@@ -39,7 +39,7 @@ export function TableRow({ children, isSelected = false, className = '', ...prop
 
 export function TableHead({ children, className = '', ...props }) {
   return (
-    <th className={`py-3 px-4 text-xs font-bold text-slate-700 whitespace-nowrap ${className}`.trim()} {...props}>
+    <th className={`py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider whitespace-nowrap ${className}`.trim()} {...props}>
       {children}
     </th>
   );
@@ -47,7 +47,7 @@ export function TableHead({ children, className = '', ...props }) {
 
 export function TableCell({ children, className = '', ...props }) {
   return (
-    <td className={`py-3 px-4 align-middle whitespace-nowrap ${className}`.trim()} {...props}>
+    <td className={`py-3.5 px-4 align-middle text-sm text-slate-800 whitespace-nowrap ${className}`.trim()} {...props}>
       {children}
     </td>
   );

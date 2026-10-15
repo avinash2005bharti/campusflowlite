@@ -25,6 +25,11 @@ const teacherSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    specialization: {
+      type: String,
+      default: 'Computer Science & Engineering',
+      trim: true,
+    },
   },
   {
     timestamps: true,

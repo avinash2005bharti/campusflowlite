@@ -161,7 +161,7 @@ export default function TgDashboard() {
           </div>
           <span className="block text-2xl font-black text-slate-900">{menteeCount}</span>
           <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Mentees in section
+            Mentees in your section
           </span>
         </div>
       </div>
@@ -223,13 +223,13 @@ export default function TgDashboard() {
         {/* Card 3: view consideration list button card */}
         <div
           onClick={() => setLedgerModalTab('considerations')}
-          className="p-5 rounded-3xl bg-gradient-to-br from-slate-50 to-purple-50/50 border border-slate-200 shadow-xs hover:border-purple-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs hover:border-purple-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
         >
           <div>
-            <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center mb-3">
+            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
               <CheckSquare size={18} />
             </div>
-            <span className="block text-base font-extrabold text-slate-900 leading-snug group-hover:text-purple-900 transition-colors">
+            <span className="block text-base font-extrabold text-slate-900 leading-snug group-hover:text-purple-700 transition-colors">
               view consideration list
             </span>
             <span className="block text-xs text-slate-500 mt-1">
@@ -237,7 +237,7 @@ export default function TgDashboard() {
             </span>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-purple-700">
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-purple-700">
             <span>Open Ledger</span>
             <ExternalLink size={14} />
           </div>
@@ -246,13 +246,13 @@ export default function TgDashboard() {
         {/* Card 4: view leave lists button card */}
         <div
           onClick={() => setLedgerModalTab('leaves')}
-          className="p-5 rounded-3xl bg-gradient-to-br from-slate-50 to-emerald-50/50 border border-slate-200 shadow-xs hover:border-emerald-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
+          className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
         >
           <div>
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
               <Calendar size={18} />
             </div>
-            <span className="block text-base font-extrabold text-slate-900 leading-snug group-hover:text-emerald-900 transition-colors">
+            <span className="block text-base font-extrabold text-slate-900 leading-snug group-hover:text-emerald-700 transition-colors">
               view leave lists
             </span>
             <span className="block text-xs text-slate-500 mt-1">
@@ -260,7 +260,7 @@ export default function TgDashboard() {
             </span>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-emerald-700">
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-emerald-700">
             <span>Open Ledger</span>
             <ExternalLink size={14} />
           </div>

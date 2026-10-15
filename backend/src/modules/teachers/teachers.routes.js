@@ -17,4 +17,14 @@ router.get(
   })
 );
 
+router.patch(
+  '/:id',
+  auth,
+  authorize('HOD', 'ADMIN'),
+  asyncHandler(async (req, res) => {
+    const teacher = await teachersService.updateTeacher(req.params.id, req.body);
+    return sendSuccess(res, teacher, 'Faculty updated successfully');
+  })
+);
+
 export default router;
