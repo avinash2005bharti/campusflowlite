@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, Search, ExternalLink, Users, UserCheck, GraduationCap, Phone, Mail } from 'lucide-react';
 import { masterDataApi } from '../../api';
+import { getSectionLetter } from '../../utils/constants.js';
 
 export default function SectionOverviewModal({
   initialSection = 'B',
@@ -17,7 +18,7 @@ export default function SectionOverviewModal({
   const fetchStudents = async () => {
     setLoading(true);
     try {
-      const res = await masterDataApi.getStudents();
+      const res = await masterDataApi.getStudents({ all: 'true' });
       setStudents(res?.data || []);
     } finally {
       setLoading(false);
@@ -40,26 +41,17 @@ export default function SectionOverviewModal({
     return Number(sem) === Number(currentSemester);
   });
 
-  // Count per section for the current semester
+  // Count per section for the current semester using precise letter extraction
   const getSectionCount = (secId) => {
-    const count = semesterStudents.filter((s) => {
-      const secName = s.section?.name || s.section?.code || '';
-      return secName.toUpperCase().includes(secId);
-    }).length;
-    return count > 0 ? count : (secId === 'B' && currentSemester === 5 && students.length === 0 ? 4 : count);
+    return semesterStudents.filter((s) => getSectionLetter(s.section) === secId).length;
   };
 
   const currentSectionStudents = semesterStudents.filter((s) => {
-    const secName = s.section?.name || s.section?.code || '';
-    return secName.toUpperCase().includes(selectedSection);
+    return getSectionLetter(s.section) === selectedSection;
   });
 
-  // Default seed list if empty for visual match
-  const displayStudents = currentSectionStudents.length > 0 ? currentSectionStudents : (selectedSection === 'B' && currentSemester === 5 ? [
-    { _id: '1', user: { name: 'Avinash Bharti', email: 'avinashbharti3007@gmail.com', phone: '+916200072434' }, enrollmentNumber: '0105CS241101' },
-    { _id: '2', user: { name: 'Ayush Mishra', email: 'ayushmishra2372005@gmail.com', phone: '+919302378451' }, enrollmentNumber: '0105CS241110' },
-    { _id: '3', user: { name: 'Ayushi Sahu', email: 'sahuayushi535@gmail.com', phone: '7222961376' }, enrollmentNumber: '0105CS241113' },
-  ] : []);
+  // Display enrolled students from database
+  const displayStudents = currentSectionStudents;
 
   const filteredStudents = displayStudents.filter((s) => {
     const name = (s.user?.name || '').toLowerCase();

@@ -28,7 +28,7 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
     // Map UI category to leaveType enum
     let leaveType = 'CASUAL';
     if (category === 'Medical') leaveType = 'MEDICAL';
-    else if (category === 'Duty / OD') leaveType = 'DUTY';
+    else if (category === 'College Duty') leaveType = 'DUTY';
     else if (category === 'Personal') leaveType = 'CASUAL';
 
     setSubmitting(true);
@@ -43,20 +43,20 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
 
       addToast(
         'Leave Application Submitted',
-        `Your ${category} leave application has been submitted and routed to your Tutor Guardian.`,
+        `Your ${category.toLowerCase()} application has been submitted and routed to your Tutor Guardian.`,
         'success'
       );
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
-      setFormError(err.message || 'Failed to apply for leave.');
+      setFormError(err.message || 'Failed to apply for leave. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={!submitting ? onClose : undefined}>
       <div
         className="modal-container max-w-lg w-[95%]"
         onClick={(e) => e.stopPropagation()}
@@ -72,13 +72,15 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
                 Apply for Student Leave
               </h3>
               <p className="text-xs text-slate-500 m-0">
-                Autonomous 3-stage academic clearance
+                Apply for medical, personal, or college duty leave clearance
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            disabled={submitting}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 cursor-pointer"
             aria-label="Close"
           >
             <X size={18} />
@@ -96,12 +98,12 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
           {/* Leave Category Segmented Toggle */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
-              Leave Category
+              Leave Category <span className="text-rose-500">*</span>
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { id: 'Medical', label: 'Medical' },
-                { id: 'Duty / OD', label: 'Duty / OD' },
+                { id: 'College Duty', label: 'College Duty' },
                 { id: 'Personal', label: 'Personal' },
               ].map((cat) => {
                 const isSelected = category === cat.id;
@@ -109,8 +111,9 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
                   <button
                     key={cat.id}
                     type="button"
+                    disabled={submitting}
                     onClick={() => setCategory(cat.id)}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
                       isSelected
                         ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
@@ -127,25 +130,28 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                From Date
+                From Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
+                disabled={submitting}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                To Date
+                To Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 value={endDate}
+                min={startDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
+                disabled={submitting}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
               />
             </div>
@@ -154,14 +160,15 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
           {/* Reason / Justification */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Reason / Justification
+              Reason / Justification <span className="text-rose-500">*</span>
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g., Prescribed medical rest due to viral fever / Attending official Hackathon..."
+              placeholder="e.g., Prescribed medical rest due to viral fever / Attending official college event..."
               rows={3}
               required
+              disabled={submitting}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
             />
           </div>
@@ -169,12 +176,12 @@ export default function ApplyLeaveModal({ onClose, onSuccess }) {
           {/* Supporting Document */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              Supporting Document (Medical certificate / OD approval)
+              Supporting Document (Optional)
             </label>
             <DocumentUploader
               value={attachment}
               onChange={setAttachment}
-              placeholder="Attach doctor prescription, hospital slip, or proof (PDF/PNG/JPG)"
+              placeholder="Attach medical prescription, certificate, or official duty slip (PDF/PNG/JPG)"
             />
           </div>
 

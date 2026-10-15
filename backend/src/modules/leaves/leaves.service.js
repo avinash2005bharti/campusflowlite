@@ -18,6 +18,7 @@ import {
 } from '../../utils/dates.js';
 import { emitNotification, emitRequestUpdated, emitQueueChanged } from '../../sockets/emitters.js';
 import { resolveStudentTG } from '../considerations/considerations.service.js';
+import { sendStatusNotificationEmail } from '../../utils/sendEmail.js';
 
 export const resolveApprovalChain = (applicantRole) => {
   switch (applicantRole) {
@@ -154,8 +155,9 @@ export const createLeave = async (user, data) => {
         });
         emitNotification(hod._id.toString(), notif);
       }
-      emitQueueChanged('HOD', 'LEAVE');
     }
+    // Always notify HOD queue so HOD Dashboard counter updates in real time
+    emitQueueChanged('HOD', 'LEAVE');
   } else if (applicantRole === 'TEACHER') {
     // Notify HOD
     const hodUsers = await User.find({ role: { $in: ['HOD', 'ADMIN'] }, isActive: true });
@@ -217,10 +219,33 @@ export const getTGLeaveQueue = async (user, query) => {
   }
 
   const { page, limit, skip } = parsePagination(query);
+
+  // Scope to the students of this TG's assigned sections/groups
+  const myGroups = await MentorGroup.find({ tg: user.teacherId, isActive: true });
+  const mySectionIds = myGroups.map((g) => g.section).filter(Boolean);
+  const myExplicitStudentIds = myGroups.flatMap((g) => g.students || []);
+
+  const myStudents = await Student.find({
+    $or: [
+      { _id: { $in: myExplicitStudentIds } },
+      { mentorGroup: { $in: myGroups.map((g) => g._id) } },
+      ...(mySectionIds.length > 0 ? [{ section: { $in: mySectionIds } }] : []),
+    ],
+  }).select('_id');
+  const myStudentIds = myStudents.map((s) => s._id);
+
   const filter = {
-    tg: user.teacherId,
     applicantRole: 'STUDENT',
+    $or: [
+      { tg: user.teacherId },
+      { student: { $in: myStudentIds } },
+    ],
   };
+
+  if (myStudentIds.length > 0) {
+    filter.student = { $in: myStudentIds };
+    delete filter.$or;
+  }
 
   if (query.status) {
     filter.status = query.status.toUpperCase();
@@ -510,6 +535,22 @@ export const tgReviewLeave = async (id, user, { decision, remarks }) => {
   });
   emitNotification(leave.applicant.toString(), notif);
 
+  // Send email notification to applicant
+  try {
+    const recipientUser = await User.findById(leave.applicant);
+    if (recipientUser?.email) {
+      sendStatusNotificationEmail(
+        recipientUser.email,
+        recipientUser.name,
+        'Student Leave Application',
+        newStatus.replace(/_/g, ' '),
+        remarks || ''
+      ).catch((err) => console.error('[Email Notification Error]:', err.message));
+    }
+  } catch (e) {
+    console.error('[Email Dispatch Failed]:', e.message);
+  }
+
   // If recommended, notify HOD
   if (decision === 'RECOMMEND') {
     const hodUsers = await User.find({ role: { $in: ['HOD', 'ADMIN'] }, isActive: true });
@@ -571,13 +612,16 @@ export const finalReviewLeave = async (id, user, { decision, remarks }) => {
     if (user.role !== 'HOD' && user.role !== 'ADMIN') {
       throw ApiError.forbidden('Only HOD or Admin can perform final review on student leave');
     }
-    // Must be RECOMMENDED_BY_TG, escalated, or unassigned TG
+    // HOD or Admin can approve RECOMMENDED_BY_TG, PENDING (direct departmental review), APPLIED, or escalated
     const isEligible =
       leave.status === 'RECOMMENDED_BY_TG' ||
-      (leave.status === 'PENDING' && (leave.escalated === true || !leave.tg));
+      leave.status === 'PENDING' ||
+      leave.status === 'APPLIED' ||
+      leave.escalated === true ||
+      !leave.tg;
     if (!isEligible) {
       throw ApiError.invalidStateTransition(
-        `Final review on student leave requires 'RECOMMENDED_BY_TG' or escalated/unassigned status. Current status: '${leave.status}'`
+        `Final review cannot be performed on student leave in '${leave.status}' status`
       );
     }
     newStatus = decision === 'APPROVE' ? 'APPROVED_BY_HOD' : 'REJECTED';
@@ -635,6 +679,22 @@ export const finalReviewLeave = async (id, user, { decision, remarks }) => {
     link: `/student/leaves/${leave._id}`,
   });
   emitNotification(leave.applicant.toString(), notif);
+
+  // Send email notification to applicant
+  try {
+    const recipientUser = await User.findById(leave.applicant);
+    if (recipientUser?.email) {
+      sendStatusNotificationEmail(
+        recipientUser.email,
+        recipientUser.name,
+        'Leave Application',
+        newStatus.replace(/_/g, ' '),
+        remarks || ''
+      ).catch((err) => console.error('[Email Notification Error]:', err.message));
+    }
+  } catch (e) {
+    console.error('[Email Dispatch Failed]:', e.message);
+  }
 
   // If student leave, notify TG
   if (leave.tg) {

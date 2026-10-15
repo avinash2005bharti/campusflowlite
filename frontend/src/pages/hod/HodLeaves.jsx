@@ -26,8 +26,20 @@ import {
   Eye,
   AlertTriangle,
   Download,
+  FileText,
 } from 'lucide-react';
 import WorkflowTimeline from '../../components/WorkflowTimeline.jsx';
+import FormalApplicationModal from '../../components/modals/FormalApplicationModal.jsx';
+
+const HOD_REJECTED_KEY = 'campusflow_hod_rejected_ids';
+const getStoredRejectedIds = () => {
+  try {
+    const raw = localStorage.getItem(HOD_REJECTED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
 
 export default function HodLeaves() {
   const { openModal, viewAttachment } = useERP();
@@ -39,12 +51,29 @@ export default function HodLeaves() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [selectedSanction, setSelectedSanction] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const res = await leaveApi.getHODQueue({ all: true });
-      setItems(res?.data || []);
+      const raw = res?.data || [];
+      const rejectedList = getStoredRejectedIds();
+      const normalized = raw.map((item) => {
+        if (rejectedList.includes(item._id)) {
+          return {
+            ...item,
+            status: 'REJECTED',
+            finalReview: {
+              ...item.finalReview,
+              decision: 'REJECT',
+              remarks: item.finalReview?.remarks || 'Authorization Declined by Department',
+            },
+          };
+        }
+        return item;
+      });
+      setItems(normalized);
     } finally {
       setLoading(false);
     }
@@ -60,7 +89,28 @@ export default function HodLeaves() {
     };
   }, []);
 
+  const isApproved = (item) => {
+    return (
+      item.status === 'APPROVED_BY_HOD' ||
+      item.status === 'APPROVED' ||
+      item.tier2Reviewer?.status === 'APPROVED' ||
+      item.finalReview?.decision === 'APPROVE'
+    );
+  };
+
+  const isRejected = (item) => {
+    const stored = getStoredRejectedIds();
+    return (
+      item.status === 'REJECTED' ||
+      item.status === 'REJECTED_BY_HOD' ||
+      item.tier2Reviewer?.status === 'REJECTED' ||
+      item.finalReview?.decision === 'REJECT' ||
+      stored.includes(item._id)
+    );
+  };
+
   const isActionNeeded = (item) => {
+    if (isApproved(item) || isRejected(item)) return false;
     if (item.applicantRole === 'STUDENT') {
       return (
         item.status === 'RECOMMENDED_BY_TG' ||
@@ -69,22 +119,6 @@ export default function HodLeaves() {
       );
     }
     return item.status === 'PENDING' || item.tier2Reviewer?.status === 'PENDING';
-  };
-
-  const isApproved = (item) => {
-    return (
-      item.status === 'APPROVED_BY_HOD' ||
-      item.status === 'APPROVED' ||
-      item.tier2Reviewer?.status === 'APPROVED'
-    );
-  };
-
-  const isRejected = (item) => {
-    return (
-      item.status === 'REJECTED' ||
-      item.status === 'REJECTED_BY_HOD' ||
-      item.tier2Reviewer?.status === 'REJECTED'
-    );
   };
 
   const filteredItems = items.filter((item) => {
@@ -322,6 +356,20 @@ export default function HodLeaves() {
                               </button>
                             )}
 
+                            {(item.status === 'APPROVED' || item.status === 'APPROVED_BY_HOD') && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedSanction(item);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                              >
+                                <FileText size={12} />
+                                <span>View Order</span>
+                              </button>
+                            )}
+
                             {actionNeeded && (
                               <Button
                                 variant="warning"
@@ -420,6 +468,19 @@ export default function HodLeaves() {
                 <WorkflowTimeline item={selectedItem} type="LEAVE" />
               </div>
 
+              {(selectedItem.status === 'APPROVED' || selectedItem.status === 'APPROVED_BY_HOD') && (
+                <div className="pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSanction(selectedItem)}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <FileText size={14} />
+                    <span>View Sanction Order</span>
+                  </button>
+                </div>
+              )}
+
               {isActionNeeded(selectedItem) && (
                 <div className="pt-3 border-t border-slate-100">
                   <Button
@@ -441,6 +502,14 @@ export default function HodLeaves() {
           </div>
         )}
       </div>
+
+      {/* Formal Sanction Order Modal */}
+      {selectedSanction && (
+        <FormalApplicationModal
+          item={selectedSanction}
+          onClose={() => setSelectedSanction(null)}
+        />
+      )}
     </div>
   );
 }

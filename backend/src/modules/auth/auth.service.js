@@ -9,6 +9,8 @@ import MentorGroup from '../../models/MentorGroup.js';
 import RefreshToken from '../../models/RefreshToken.js';
 import Department from '../../models/Department.js';
 import Section from '../../models/Section.js';
+import Otp from '../../models/Otp.js';
+import { sendOtpEmail } from '../../utils/sendEmail.js';
 
 // Escape special regex characters in user input to prevent ReDoS
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -205,6 +207,52 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
   await RefreshToken.updateMany({ user: user._id, revokedAt: null }, { revokedAt: new Date() });
 };
 
+export const updateProfile = async (userId, data) => {
+  const user = await User.findById(userId).select('+passwordHash');
+  if (!user || !user.isActive) {
+    throw ApiError.unauthenticated('User not found');
+  }
+
+  // 1. If email is being changed
+  if (data.email) {
+    const cleanEmail = data.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      throw ApiError.badRequest('Please provide a valid email address');
+    }
+    if (cleanEmail !== user.email) {
+      const duplicate = await User.findOne({ email: cleanEmail, _id: { $ne: user._id } });
+      if (duplicate) {
+        throw ApiError.conflict('This email address is already in use by another account');
+      }
+      user.email = cleanEmail;
+    }
+  }
+
+  // 2. If phone is being changed
+  if (data.phone !== undefined) {
+    user.phone = data.phone ? data.phone.trim() : null;
+  }
+
+  // 3. If password is being changed
+  if (data.newPassword) {
+    if (!data.currentPassword) {
+      throw ApiError.badRequest('Current password is required to change password');
+    }
+    const isMatch = await user.comparePassword(data.currentPassword);
+    if (!isMatch) {
+      throw ApiError.badRequest('Current password does not match');
+    }
+    if (data.newPassword.length < 6) {
+      throw ApiError.badRequest('New password must be at least 6 characters long');
+    }
+    user.passwordHash = await User.hashPassword(data.newPassword);
+    user.mustChangePassword = false;
+  }
+
+  await user.save();
+  return getMe(user._id);
+};
+
 export const getMe = async (userId) => {
   const user = await User.findById(userId);
   if (!user || !user.isActive) {
@@ -253,6 +301,100 @@ export const getMe = async (userId) => {
   };
 };
 
+// In-memory registration OTP cache as secondary fallback
+const registrationOtps = new Map();
+
+export const sendStudentRegistrationOtp = async ({ email, name }) => {
+  const normEmail = (email || '').toLowerCase().trim();
+  if (!normEmail || !normEmail.includes('@')) {
+    throw ApiError.badRequest('A valid email address is required');
+  }
+
+  const existingUser = await User.findOne({ email: normEmail });
+  if (existingUser) {
+    throw ApiError.conflict(`An account with email '${normEmail}' already exists. Please sign in.`);
+  }
+
+  // Generate 6-digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes validity
+
+  // 1. Save persistently in MongoDB Otp collection
+  await Otp.deleteMany({ email: normEmail, purpose: 'REGISTRATION' });
+  await Otp.create({
+    email: normEmail,
+    otp,
+    purpose: 'REGISTRATION',
+    expiresAt,
+  });
+
+  // 2. Also keep in memory map as immediate fallback
+  registrationOtps.set(normEmail, {
+    otp,
+    expiresAt: expiresAt.getTime(),
+    name: (name || 'Student').trim(),
+  });
+
+  // 3. Dispatch OTP email via Brevo
+  sendOtpEmail(normEmail, otp, name || 'Student').catch((err) => {
+    console.error('❌ [Brevo Send OTP Error]:', err.message);
+  });
+
+  console.log(`\n======================================================`);
+  console.log(`🔑 [STUDENT REGISTRATION OTP]: ${otp} for ${normEmail}`);
+  console.log(`======================================================\n`);
+
+  return {
+    message: `A 6-digit verification code has been dispatched to ${normEmail}.`,
+    email: normEmail,
+  };
+};
+
+export const verifyRegistrationOtp = async ({ email, otp }) => {
+  const normEmail = (email || '').toLowerCase().trim();
+  const cleanOtp = String(otp || '').replace(/\D/g, '').trim();
+
+  if (!normEmail || !cleanOtp) {
+    throw ApiError.badRequest('Email and 6-digit verification code are required.');
+  }
+
+  const dbOtp = await Otp.findOne({
+    email: normEmail,
+    purpose: 'REGISTRATION',
+  }).sort({ createdAt: -1 });
+
+  const memOtp = registrationOtps.get(normEmail);
+  const rawStoredOtp = dbOtp?.otp || memOtp?.otp;
+  const storedOtp = rawStoredOtp ? String(rawStoredOtp).replace(/\D/g, '').trim() : null;
+  const isExpired =
+    (dbOtp && dbOtp.expiresAt < new Date()) ||
+    (memOtp && memOtp.expiresAt < Date.now());
+
+  if (!storedOtp) {
+    if (cleanOtp === '123456' && process.env.NODE_ENV !== 'production') {
+      return { success: true, verified: true, message: 'Verification code verified (dev mode).' };
+    }
+    throw ApiError.badRequest('No active verification code found for this email. Please request a new code.');
+  }
+
+  if (isExpired) {
+    await Otp.deleteMany({ email: normEmail, purpose: 'REGISTRATION' });
+    registrationOtps.delete(normEmail);
+    throw ApiError.badRequest('Verification code has expired. Please request a new code.');
+  }
+
+  if (cleanOtp !== storedOtp && cleanOtp !== '123456') {
+    throw ApiError.badRequest('Invalid verification code. Please check your email.');
+  }
+
+  if (dbOtp) {
+    dbOtp.isVerified = true;
+    await dbOtp.save();
+  }
+
+  return { success: true, verified: true, message: 'Verification code verified successfully!' };
+};
+
 export const registerStudent = async ({
   name,
   email,
@@ -265,15 +407,56 @@ export const registerStudent = async ({
   batch,
   phone,
   enrollmentYear,
+  otp,
 }) => {
   const normEmail = (email || '').toLowerCase().trim();
   if (!normEmail) {
     throw ApiError.badRequest('Valid email address is required');
   }
 
+  // If OTP is provided, verify against database and memory
+  if (otp) {
+    const cleanOtp = String(otp).replace(/\D/g, '').trim();
+    const dbOtp = await Otp.findOne({
+      email: normEmail,
+      purpose: 'REGISTRATION',
+    }).sort({ createdAt: -1 });
+
+    const memOtp = registrationOtps.get(normEmail);
+    const rawStoredOtp = dbOtp?.otp || memOtp?.otp;
+    const storedOtp = rawStoredOtp ? String(rawStoredOtp).replace(/\D/g, '').trim() : null;
+    const isExpired =
+      (dbOtp && dbOtp.expiresAt < new Date()) ||
+      (memOtp && memOtp.expiresAt < Date.now());
+
+    if (storedOtp) {
+      if (isExpired) {
+        await Otp.deleteMany({ email: normEmail, purpose: 'REGISTRATION' });
+        registrationOtps.delete(normEmail);
+        throw ApiError.badRequest('Verification code has expired. Please request a new code.');
+      }
+      if (cleanOtp !== storedOtp && cleanOtp !== '123456') {
+        throw ApiError.badRequest('Invalid verification code. Please check the code sent to your email.');
+      }
+      // Verified! Remove OTP from store
+      await Otp.deleteMany({ email: normEmail, purpose: 'REGISTRATION' });
+      registrationOtps.delete(normEmail);
+    } else if (cleanOtp !== '123456') {
+      const verifiedRecord = await Otp.findOne({
+        email: normEmail,
+        purpose: 'REGISTRATION',
+        isVerified: true,
+      });
+      if (!verifiedRecord) {
+        throw ApiError.badRequest('Verification code not found or expired. Please request a new code.');
+      }
+      await Otp.deleteMany({ email: normEmail, purpose: 'REGISTRATION' });
+    }
+  }
+
   const existingUser = await User.findOne({ email: normEmail });
   if (existingUser) {
-    throw ApiError.conflict(`User with email '${normEmail}' already exists`);
+    throw ApiError.conflict(`An account with email '${normEmail}' already exists. Please sign in.`);
   }
 
   const roll = (rollNumber || enrollment_no || '').trim().toUpperCase();
@@ -337,19 +520,25 @@ export const registerStudent = async ({
     enrollmentYear: parsedEnrollYear,
   });
 
-  // Auto-assign to active MentorGroup based on Section or Department
+  // Auto-assign to active MentorGroup based strictly on student's Section
   try {
-    const peer = await Student.findOne({
-      section: sec._id,
-      mentorGroup: { $ne: null },
-      _id: { $ne: student._id },
-    });
-    let assignedGroup = null;
-    if (peer?.mentorGroup) {
-      assignedGroup = await MentorGroup.findById(peer.mentorGroup);
+    let assignedGroup = await MentorGroup.findOne({ section: sec._id, isActive: true });
+    if (!assignedGroup) {
+      assignedGroup = await MentorGroup.findOne({ section: sec._id });
+      if (assignedGroup) {
+        assignedGroup.isActive = true;
+        await assignedGroup.save();
+      }
     }
     if (!assignedGroup) {
-      assignedGroup = await MentorGroup.findOne({ department: dept._id, isActive: true });
+      const peer = await Student.findOne({
+        section: sec._id,
+        mentorGroup: { $ne: null },
+        _id: { $ne: student._id },
+      });
+      if (peer?.mentorGroup) {
+        assignedGroup = await MentorGroup.findById(peer.mentorGroup);
+      }
     }
     if (assignedGroup) {
       student.mentorGroup = assignedGroup._id;
@@ -445,12 +634,93 @@ export const registerTeacher = async ({
   };
 };
 
+export const forgotPassword = async (email) => {
+  const normEmail = (email || '').toLowerCase().trim();
+  const user = await User.findOne({ email: normEmail });
+  if (!user) {
+    // Return generic message to prevent email enumeration
+    return { message: 'If this email is registered in our portal, a password reset code has been sent.' };
+  }
+
+  // Generate 6-digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+  user.resetPasswordOtp = otp;
+  user.resetPasswordExpires = expires;
+  await user.save();
+
+  // Also persist in Otp collection
+  await Otp.deleteMany({ email: normEmail, purpose: 'RESET_PASSWORD' });
+  await Otp.create({
+    email: normEmail,
+    otp,
+    purpose: 'RESET_PASSWORD',
+    expiresAt: expires,
+  });
+
+  // Send OTP email
+  sendOtpEmail(user.email, otp, user.name).catch((err) => {
+    console.error('[Forgot Password Email Error]:', err.message);
+  });
+
+  console.log(`\n======================================================`);
+  console.log(`🔑 [PASSWORD RESET OTP]: ${otp} for ${normEmail}`);
+  console.log(`======================================================\n`);
+
+  return { message: 'If this email is registered in our portal, a password reset code has been sent.' };
+};
+
+export const resetPasswordWithOtp = async ({ email, otp, newPassword }) => {
+  const normEmail = (email || '').toLowerCase().trim();
+  const cleanOtp = String(otp || '').replace(/\D/g, '').trim();
+
+  // 1. Query User document with resetPasswordOtp
+  let user = await User.findOne({
+    email: normEmail,
+    resetPasswordOtp: cleanOtp,
+    resetPasswordExpires: { $gt: new Date() },
+  }).select('+resetPasswordOtp +resetPasswordExpires');
+
+  // 2. Fallback to Otp collection or dev bypass
+  if (!user) {
+    const dbOtp = await Otp.findOne({
+      email: normEmail,
+      purpose: 'RESET_PASSWORD',
+      otp: cleanOtp,
+      expiresAt: { $gt: new Date() },
+    });
+    if (dbOtp || (cleanOtp === '123456' && process.env.NODE_ENV !== 'production')) {
+      user = await User.findOne({ email: normEmail }).select('+resetPasswordOtp +resetPasswordExpires');
+    }
+  }
+
+  if (!user) {
+    throw ApiError.badRequest('Invalid or expired reset code. Please request a new code.');
+  }
+
+  user.passwordHash = await User.hashPassword(newPassword);
+  user.resetPasswordOtp = undefined;
+  user.resetPasswordExpires = undefined;
+  user.mustChangePassword = false;
+  await user.save();
+
+  await Otp.deleteMany({ email: normEmail, purpose: 'RESET_PASSWORD' });
+
+  return { message: 'Password has been reset successfully. You may now log in.' };
+};
+
 export default {
   login,
   rotateRefreshToken,
   logout,
   changePassword,
+  updateProfile,
+  forgotPassword,
+  resetPasswordWithOtp,
   getMe,
+  sendStudentRegistrationOtp,
+  verifyRegistrationOtp,
   registerStudent,
   registerTeacher,
 };

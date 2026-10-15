@@ -66,11 +66,38 @@ export function ERPProvider({ children }) {
   }, []);
 
   // File Preview Handler with signed URLs
-  const viewAttachment = useCallback(async (fileId, fileName = 'Document') => {
+  const viewAttachment = useCallback(async (target, fallbackName = 'Document') => {
+    let fileId = target;
+    let fileName = fallbackName;
+    let directUrl = null;
+
+    if (target && typeof target === 'object') {
+      fileId = target.fileId || target.url || target._id;
+      fileName = target.name || target.fileName || target.documentName || fallbackName;
+      if (target.url && typeof target.url === 'string' && (target.url.startsWith('http') || target.url.startsWith('data:'))) {
+        directUrl = target.url;
+      }
+    }
+
+    if (typeof fileId === 'string' && (fileId.startsWith('http://') || fileId.startsWith('https://') || fileId.startsWith('data:'))) {
+      directUrl = fileId;
+    }
+
+    if (directUrl) {
+      setPreviewFile({ name: fileName, url: directUrl, loading: false });
+      return;
+    }
+
+    if (!fileId) {
+      addToast('Cannot Open Attachment', 'No attachment reference found for preview', 'warning');
+      return;
+    }
+
     try {
       setPreviewFile({ name: fileName, url: '', loading: true });
       const res = await uploadApi.getSignedUrl(fileId);
       const signedUrl = res?.data?.url || res?.url;
+      if (!signedUrl) throw new Error('No preview URL generated');
       setPreviewFile({ name: fileName, url: signedUrl, loading: false });
     } catch (err) {
       addToast('Cannot Open Attachment', err.message || 'Permission denied or file unavailable', 'danger');
@@ -99,7 +126,8 @@ export function ERPProvider({ children }) {
 
       const roleStr = user.role?.toLowerCase() || 'student';
       // If user is a teacher who is also TG, role can be tg or teacher
-      const isTg = Boolean(user.isTG || user.mentorGroupId);
+      const isFaculty = user.role === 'TEACHER' || user.role === 'HOD';
+      const isTg = isFaculty && Boolean(user.isTG);
       const effectiveRole = isTg && localStorage.getItem('campusflow_role') === 'tg' ? 'tg' : roleStr;
 
       setCurrentRole(effectiveRole);
@@ -183,7 +211,8 @@ export function ERPProvider({ children }) {
     const data = await authApi.login({ email, password });
     const user = data.user;
     const role = (user.role || '').toLowerCase();
-    const effectiveRole = user.isTG ? 'tg' : role;
+    const isFaculty = user.role === 'TEACHER' || user.role === 'HOD';
+    const effectiveRole = isFaculty && user.isTG ? 'tg' : role;
 
     setToken(data.accessToken);
     setCurrentUser(user);
@@ -214,15 +243,31 @@ export function ERPProvider({ children }) {
   };
 
   const switchRole = (newRole) => {
+    if (currentUser?.role === 'STUDENT') {
+      return; // Students are not permitted to switch roles
+    }
     setCurrentRole(newRole);
     localStorage.setItem('campusflow_role', newRole);
   };
+
+  const updateCurrentUser = useCallback((newUserData) => {
+    setCurrentUser((prev) => {
+      const merged = { ...prev, ...newUserData };
+      try {
+        localStorage.setItem('campusflow_user', JSON.stringify(merged));
+      } catch (e) {
+        console.warn('Failed to persist user to localStorage', e);
+      }
+      return merged;
+    });
+  }, []);
 
   return (
     <ERPContext.Provider
       value={{
         token,
         currentUser,
+        updateCurrentUser,
         currentRole,
         isAuthenticated,
         loadingAuth,

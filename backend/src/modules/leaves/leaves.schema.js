@@ -31,7 +31,14 @@ export const tgReviewLeaveSchema = z.object({
 );
 
 export const finalReviewLeaveSchema = z.object({
-  decision: z.enum(['APPROVE', 'REJECT']),
+  decision: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const u = val.toUpperCase().trim();
+      if (u.includes('APPROV')) return 'APPROVE';
+      if (u.includes('REJECT')) return 'REJECT';
+    }
+    return val;
+  }, z.enum(['APPROVE', 'REJECT'])),
   remarks: z.string().optional().default(''),
 }).refine(
   (data) => {

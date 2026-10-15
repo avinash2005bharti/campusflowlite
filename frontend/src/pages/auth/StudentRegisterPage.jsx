@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authApi } from '../../api/authApi.js';
 import {
@@ -17,11 +17,14 @@ import {
   Hash,
   Shield,
   ArrowLeft,
+  KeyRound,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function StudentRegisterPage() {
   const navigate = useNavigate();
 
+  const [step, setStep] = useState(1); // 1 = Registration form, 2 = Brevo OTP Verification
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -35,10 +38,20 @@ export default function StudentRegisterPage() {
     confirmPassword: '',
   });
 
+  const [otp, setOtp] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Resend countdown timer
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,7 +74,8 @@ export default function StudentRegisterPage() {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  // Step 1: Validate form and dispatch Brevo OTP email
+  const handleInitiateRegistration = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMsg('');
@@ -81,13 +95,74 @@ export default function StudentRegisterPage() {
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError('Password must contain at least 6 characters.');
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    if (!/[A-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)) {
+      setError('Password must contain at least one uppercase letter (A-Z) and one number (0-9).');
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match. Please verify.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Send verification code via Brevo
+      const res = await authApi.sendStudentRegistrationOtp({
+        email: formData.email.trim().toLowerCase(),
+        name: formData.name.trim(),
+      });
+
+      setSuccessMsg(res?.message || `A 6-digit code has been dispatched to ${formData.email}`);
+      setStep(2);
+      setResendCooldown(45);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to dispatch verification email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Resend OTP
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return;
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+
+    try {
+      const res = await authApi.sendStudentRegistrationOtp({
+        email: formData.email.trim().toLowerCase(),
+        name: formData.name.trim(),
+      });
+      setSuccessMsg(res?.message || `A new verification code was sent to ${formData.email}`);
+      setResendCooldown(45);
+    } catch (err) {
+      setError(err.response?.data?.error?.message || err.message || 'Failed to resend code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Step 2: Verify OTP and finalize student enrollment
+  const handleVerifyAndRegister = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!otp.trim()) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    if (otp.trim().length < 6) {
+      setError('Verification code must be 6 digits.');
       return;
     }
 
@@ -107,10 +182,11 @@ export default function StudentRegisterPage() {
         semester: Number(formData.semester),
         section: cleanSection,
         batch: formData.batch.trim(),
-        phone: formData.phone.trim() || null,
+        phone: formData.phone.trim() || undefined,
+        otp: otp.trim(),
       });
 
-      setSuccessMsg(res?.message || 'Student account created successfully!');
+      setSuccessMsg(res?.message || 'Student account created and verified successfully!');
       setTimeout(() => {
         navigate('/login', {
           state: {
@@ -119,7 +195,12 @@ export default function StudentRegisterPage() {
         });
       }, 1500);
     } catch (err) {
-      setError(err.response?.data?.error?.message || err.message || 'Registration failed.');
+      const serverMsg =
+        err.response?.data?.error?.details?.[0]?.message ||
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message;
+      setError(serverMsg || 'Verification failed. Please check the code.');
     } finally {
       setLoading(false);
     }
@@ -228,220 +309,304 @@ export default function StudentRegisterPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full Name */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Full Name <span className="text-rose-500">*</span>
-              </label>
-              <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  placeholder="e.g. Ayush Sharma"
-                  required
-                  className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
-                />
-              </div>
-            </div>
-
-            {/* Email & Enrollment No */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          {step === 1 ? (
+            <form onSubmit={handleInitiateRegistration} className="space-y-4">
+              {/* Full Name */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Official / Personal Email <span className="text-rose-500">*</span>
+                  Full Name <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
-                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="student@gmail.com"
-                    required
-                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Enrollment No. / Student ID <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Hash size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                   <input
                     type="text"
-                    name="enrollment_no"
-                    value={formData.enrollment_no}
+                    name="name"
+                    value={formData.name}
                     onChange={handleChange}
-                    placeholder="0103CS211001"
-                    required
-                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium uppercase"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Year, Semester, Section */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Year <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  name="year"
-                  value={formData.year}
-                  onChange={handleYearChange}
-                  className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
-                >
-                  <option value="1st Year">1st Year</option>
-                  <option value="2nd Year">2nd Year</option>
-                  <option value="3rd Year">3rd Year</option>
-                  <option value="4th Year">4th Year</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Semester <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  name="semester"
-                  value={formData.semester}
-                  onChange={handleChange}
-                  className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                    <option key={s} value={s}>
-                      Semester {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Section <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  name="section"
-                  value={formData.section}
-                  onChange={handleChange}
-                  className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
-                >
-                  <option value="Section A">Section A</option>
-                  <option value="Section B">Section B</option>
-                  <option value="Section C">Section C</option>
-                  <option value="Section D">Section D</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Academic Batch & Contact Phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Academic Batch <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    name="batch"
-                    value={formData.batch}
-                    onChange={handleChange}
-                    placeholder="2022-2026"
+                    placeholder="e.g. Ayush Sharma"
                     required
                     className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Contact Phone (Optional)
-                </label>
-                <div className="relative">
-                  <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
-                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
-                  />
+              {/* Email & Enrollment No */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Official / Personal Email <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="student@gmail.com"
+                      required
+                      className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Enrollment No. / Student ID <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Hash size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="enrollment_no"
+                      value={formData.enrollment_no}
+                      onChange={handleChange}
+                      placeholder="0103CS211001"
+                      required
+                      className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium uppercase"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Password & Confirm Password */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Password <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="••••••••••••"
-                    required
-                    className="w-full pl-11 pr-11 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
-                    aria-label="Toggle password visibility"
+              {/* Year, Semester, Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Year <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="year"
+                    value={formData.year}
+                    onChange={handleYearChange}
+                    className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
                   >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Semester <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="semester"
+                    value={formData.semester}
+                    onChange={handleChange}
+                    className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={s}>
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Section <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    name="section"
+                    value={formData.section}
+                    onChange={handleChange}
+                    className="w-full px-3 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium cursor-pointer"
+                  >
+                    <option value="Section A">Section A</option>
+                    <option value="Section B">Section B</option>
+                    <option value="Section C">Section C</option>
+                    <option value="Section D">Section D</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Academic Batch & Contact Phone */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Academic Batch <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Calendar size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      name="batch"
+                      value={formData.batch}
+                      onChange={handleChange}
+                      placeholder="2022-2026"
+                      required
+                      className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Contact Phone (Optional)
+                  </label>
+                  <div className="relative">
+                    <Phone size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="+91 98765 43210"
+                      className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password & Confirm Password */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Password <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="••••••••••••"
+                      required
+                      className="w-full pl-11 pr-11 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Confirm Password <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="Re-enter password"
+                      required
+                      className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Requirements Guidance */}
+              <p className="text-[11px] text-slate-500 font-medium mt-1 mb-2">
+                🔒 Password must be at least 8 characters with at least one uppercase letter (A-Z) and one number (0-9).
+              </p>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="auth-submit mt-4"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Sending Brevo Verification Code...</span>
+                  </>
+                ) : (
+                  <span>Verify Email & Create Account →</span>
+                )}
+              </button>
+            </form>
+          ) : (
+            /* STEP 2: BREVO OTP VERIFICATION */
+            <form onSubmit={handleVerifyAndRegister} className="space-y-5 animate-in fade-in duration-200">
+              <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                  <KeyRound size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-bold text-blue-900">
+                    Verification Code Dispatched
+                  </span>
+                  <p className="text-xs text-blue-800 mt-0.5 mb-0">
+                    A 6-digit numeric OTP was sent via Brevo to <strong>{formData.email}</strong>.
+                  </p>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  Confirm Password <span className="text-rose-500">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-2 text-center uppercase tracking-wider">
+                  Enter 6-Digit OTP Code <span className="text-rose-500">*</span>
                 </label>
-                <div className="relative">
-                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <div className="relative max-w-xs mx-auto">
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Re-enter password"
+                    type="text"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="••••••"
+                    autoFocus
                     required
-                    className="w-full pl-11 pr-4 py-3 bg-[#F8FAFC] focus:bg-white border border-slate-300 focus:border-blue-600 rounded-xl text-sm text-slate-800 font-medium"
+                    className="w-full py-3.5 text-center text-2xl font-black tracking-[10px] text-blue-600 bg-[#F8FAFC] focus:bg-white border-2 border-blue-400 focus:border-blue-600 rounded-2xl shadow-xs focus:outline-none"
                   />
                 </div>
+                <p className="text-[11px] text-slate-500 text-center mt-2">
+                  Code is valid for 10 minutes. Please check your inbox or spam folder.
+                </p>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="auth-submit mt-4"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Enrolling Student...</span>
-                </>
-              ) : (
-                <span>Complete Student Registration →</span>
-              )}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={loading || otp.length < 6}
+                className="auth-submit"
+              >
+                {loading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Verifying Code & Enrolling...</span>
+                  </>
+                ) : (
+                  <span>Verify Code & Complete Registration →</span>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between text-xs pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep(1);
+                    setError('');
+                  }}
+                  className="text-slate-600 hover:text-slate-900 font-semibold cursor-pointer"
+                >
+                  ← Edit Registration Details
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={loading || resendCooldown > 0}
+                  className={`font-bold cursor-pointer ${
+                    resendCooldown > 0 ? 'text-slate-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800'
+                  }`}
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend OTP'}
+                </button>
+              </div>
+            </form>
+          )}
 
           <div className="mt-6 text-center pt-4 border-t border-slate-200">
             <span className="text-xs text-slate-500 font-medium">Already have an account? </span>

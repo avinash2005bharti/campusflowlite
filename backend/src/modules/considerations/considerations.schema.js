@@ -19,6 +19,10 @@ export const createConsiderationSchema = z.object({
   requestedPeriods: z.number().int().min(1, 'Requested periods must be at least 1'),
   selectedPeriods: z.array(z.string()).optional(),
   periodTiming: z.string().optional(),
+  timeFrom: z.string().optional(),
+  timeTo: z.string().optional(),
+  isGroup: z.boolean().optional(),
+  groupMembers: z.array(z.string()).optional(),
   description: z.string().optional(),
   attachments: z.array(attachmentSchema).optional().default([]),
 });
@@ -37,7 +41,14 @@ export const tgReviewSchema = z.object({
 );
 
 export const hodReviewSchema = z.object({
-  decision: z.enum(['APPROVE', 'REJECT']),
+  decision: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const u = val.toUpperCase().trim();
+      if (u.includes('APPROV')) return 'APPROVE';
+      if (u.includes('REJECT')) return 'REJECT';
+    }
+    return val;
+  }, z.enum(['APPROVE', 'REJECT'])),
   remarks: z.string().optional().default(''),
   approvedPeriods: z.number().int().min(1).optional(),
 }).refine(

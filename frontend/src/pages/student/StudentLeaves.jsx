@@ -87,7 +87,7 @@ export default function StudentLeaves() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Student Leave Applications"
-        description="Clearance pipeline for medical, emergency, and casual leaves."
+        description="Apply for and track medical, emergency, and casual leaves."
         actions={
           <Button
             size="sm"
@@ -138,8 +138,8 @@ export default function StudentLeaves() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Type & Reason</TableHead>
-                    <TableHead>Range</TableHead>
-                    <TableHead>Days</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Duration</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -148,16 +148,18 @@ export default function StudentLeaves() {
                   {leaves.map((l) => (
                     <TableRow key={l._id} isSelected={selectedLeave?._id === l._id}>
                       <TableCell>
-                        <div className="font-extrabold text-slate-900">{l.leaveType} Leave</div>
+                        <div className="font-extrabold text-slate-900">
+                          {l.leaveType ? `${l.leaveType.replace(/_/g, ' ')} Leave` : 'Leave'}
+                        </div>
                         <div className="text-[11px] text-slate-500 max-w-[200px] truncate">
                           {l.reason}
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-slate-600">
-                        {l.startDate} to {l.endDate}
+                        {l.startDate} {l.endDate !== l.startDate ? `to ${l.endDate}` : ''}
                       </TableCell>
                       <TableCell className="font-bold text-slate-800">
-                        {l.totalDays} day{l.totalDays > 1 ? 's' : ''}
+                        {l.totalDays} Day{l.totalDays !== 1 ? 's' : ''}
                       </TableCell>
                       <TableCell>{getStatusBadge(l.status)}</TableCell>
                       <TableCell>

@@ -14,8 +14,9 @@ import {
   TableCell,
   EmptyState,
 } from '../../components/common';
-import { FileText, Plus, Eye, Ban, Calendar, Clock, AlertCircle } from 'lucide-react';
+import { FileText, Plus, Eye, Ban, Calendar, Clock, AlertCircle, Users, CheckCircle2 } from 'lucide-react';
 import WorkflowTimeline from '../../components/WorkflowTimeline.jsx';
+import FormalApplicationModal from '../../components/modals/FormalApplicationModal.jsx';
 
 export default function StudentConsiderations() {
   const { openModal, viewAttachment, addToast } = useERP();
@@ -23,6 +24,7 @@ export default function StudentConsiderations() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [formalModalItem, setFormalModalItem] = useState(null);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -85,8 +87,8 @@ export default function StudentConsiderations() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Attendance Consideration (OD) Requests"
-        description="Official duty attendance waiver applications for hackathons, sports, and department activities."
+        title="Attendance Consideration Requests"
+        description="Submit and track attendance consideration requests for hackathons, sports, and official college activities."
         actions={
           <Button
             size="sm"
@@ -129,8 +131,8 @@ export default function StudentConsiderations() {
             {requests.length === 0 ? (
               <EmptyState
                 title="No Consideration Requests Found"
-                description="Apply for an official attendance credit when participating in events."
-                actionLabel="Submit Consideration"
+                description="Submit an attendance consideration request when participating in events."
+                actionLabel="New Request"
                 onAction={() => openModal('REQUEST_CONSIDERATION')}
               />
             ) : (
@@ -139,7 +141,7 @@ export default function StudentConsiderations() {
                   <TableRow>
                     <TableHead>Event & Category</TableHead>
                     <TableHead>Dates</TableHead>
-                    <TableHead>Periods</TableHead>
+                    <TableHead>Lectures</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -151,16 +153,23 @@ export default function StudentConsiderations() {
                       isSelected={selectedRequest?._id === r._id}
                     >
                       <TableCell>
-                        <div className="font-extrabold text-slate-900">{r.eventTitle}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-extrabold text-slate-900">{r.eventTitle}</span>
+                          {Boolean(r.isGroup || (r.groupMembers && r.groupMembers.length > 0)) && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              Group ({r.groupMembers?.length || 'Team'})
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[11px] text-slate-500 font-medium">
-                          {r.eventType} • {r.organizer || 'Autonomous'}
+                          {r.eventType ? r.eventType.replace(/_/g, ' ') : 'Activity'} • {r.organizer || 'Official'}
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-slate-600">
                         {r.startDate} {r.endDate !== r.startDate ? `to ${r.endDate}` : ''}
                       </TableCell>
                       <TableCell className="font-bold text-slate-800">
-                        {r.requestedPeriods}
+                        {r.requestedPeriods} {r.requestedPeriods === 1 ? 'Lecture' : 'Lectures'}
                         {r.hodReview?.approvedPeriods && (
                           <span className="text-emerald-700 block text-[11px]">
                             Approved: {r.hodReview.approvedPeriods}
@@ -232,15 +241,51 @@ export default function StudentConsiderations() {
                 </div>
 
                 <div>
-                  <span className="text-slate-500 font-semibold">Periods Requested:</span>{' '}
+                  <span className="text-slate-500 font-semibold">Lectures Requested:</span>{' '}
                   <span className="text-slate-900 font-bold">
-                    {selectedRequest.requestedPeriods}
+                    {selectedRequest.requestedPeriods} {selectedRequest.requestedPeriods === 1 ? 'Lecture' : 'Lectures'}
                   </span>
                 </div>
 
+                {selectedRequest.hodReview?.approvedPeriods && (
+                  <div>
+                    <span className="text-slate-500 font-semibold">Lectures Approved:</span>{' '}
+                    <span className="text-emerald-700 font-bold">
+                      {selectedRequest.hodReview.approvedPeriods} Lectures
+                    </span>
+                  </div>
+                )}
+
+                {/* Group Roster in Drawer */}
+                {Boolean(selectedRequest.isGroup || (selectedRequest.groupMembers && selectedRequest.groupMembers.length > 0)) && (
+                  <div>
+                    <span className="text-slate-500 font-semibold block mb-1">
+                      Group Members ({selectedRequest.groupMembers?.length || 'Team'}):
+                    </span>
+                    <div className="flex flex-col gap-1 p-2.5 rounded-xl bg-indigo-50/60 border border-indigo-200 text-[11px]">
+                      {(selectedRequest.groupMembers || []).map((m, idx) => {
+                        const mName = m.user?.name || m.name || 'Student';
+                        const mRoll = m.enrollmentNumber || m.rollNumber || '';
+                        const mSec = m.section?.name || m.section?.code || '';
+                        const isLead = (m._id && selectedRequest.groupLeader && String(m._id) === String(selectedRequest.groupLeader._id || selectedRequest.groupLeader)) || (idx === 0 && !selectedRequest.groupLeader);
+                        return (
+                          <div key={m._id || idx} className="flex items-center justify-between py-0.5 border-b border-indigo-100 last:border-0">
+                            <span className="font-bold text-slate-800">
+                              {isLead ? '★ (Lead) ' : ''}{mName}
+                            </span>
+                            <span className="text-slate-500 font-mono text-[10px]">
+                              {mRoll} {mSec ? `• ${mSec}` : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {selectedRequest.description && (
                   <div>
-                    <span className="text-slate-500 font-semibold block mb-0.5">Narrative:</span>
+                    <span className="text-slate-500 font-semibold block mb-0.5">Reason / Description:</span>
                     <p className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 m-0">
                       {selectedRequest.description}
                     </p>
@@ -277,6 +322,22 @@ export default function StudentConsiderations() {
                 />
               </div>
 
+              {/* Sanctioned Certificate Button if Approved */}
+              {selectedRequest.status === 'APPROVED_BY_HOD' && (
+                <div className="mb-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    fullWidth
+                    icon={<FileText size={14} />}
+                    onClick={() => setFormalModalItem(selectedRequest)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold cursor-pointer"
+                  >
+                    View Sanctioned Certificate
+                  </Button>
+                </div>
+              )}
+
               {selectedRequest.status === 'PENDING' && (
                 <Button
                   variant="danger"
@@ -295,6 +356,14 @@ export default function StudentConsiderations() {
           </div>
         )}
       </div>
+
+      {/* Formal Sanctioned Application Document Modal */}
+      {formalModalItem && (
+        <FormalApplicationModal
+          item={formalModalItem}
+          onClose={() => setFormalModalItem(null)}
+        />
+      )}
     </div>
   );
 }

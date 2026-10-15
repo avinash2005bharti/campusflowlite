@@ -289,6 +289,91 @@ textarea {
    Core Design System Utilities (Pure Vanilla CSS Engine)
    ========================================================================== */
 
+/* Positioning */
+.relative {
+  position: relative !important;
+}
+
+.absolute {
+  position: absolute !important;
+}
+
+.fixed {
+  position: fixed !important;
+}
+
+.static {
+  position: static !important;
+}
+
+.sticky {
+  position: sticky !important;
+}
+
+.inset-0 {
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+}
+
+.top-0 { top: 0 !important; }
+.top-1\/2 { top: 50% !important; }
+.bottom-0 { bottom: 0 !important; }
+.left-0 { left: 0 !important; }
+.left-2 { left: 0.5rem !important; }
+.left-3 { left: 0.75rem !important; }
+.left-3\.5 { left: 0.875rem !important; }
+.left-4 { left: 1rem !important; }
+.right-0 { right: 0 !important; }
+.right-2 { right: 0.5rem !important; }
+.right-3 { right: 0.75rem !important; }
+.right-3\.5 { right: 0.875rem !important; }
+.right-4 { right: 1rem !important; }
+
+.-translate-y-1\/2 {
+  transform: translateY(-50%) !important;
+}
+
+.-translate-x-1\/2 {
+  transform: translateX(-50%) !important;
+}
+
+.pointer-events-none {
+  pointer-events: none !important;
+}
+
+.pointer-events-auto {
+  pointer-events: auto !important;
+}
+
+/* Directional Paddings (Left & Right) */
+.pl-0 { padding-left: 0 !important; }
+.pl-1 { padding-left: var(--space-1) !important; }
+.pl-2 { padding-left: var(--space-2) !important; }
+.pl-3 { padding-left: var(--space-3) !important; }
+.pl-3\.5 { padding-left: var(--space-3-5) !important; }
+.pl-4 { padding-left: var(--space-4) !important; }
+.pl-5 { padding-left: var(--space-5) !important; }
+.pl-6 { padding-left: var(--space-6) !important; }
+.pl-8 { padding-left: var(--space-8) !important; }
+.pl-10 { padding-left: 2.5rem !important; }
+.pl-11 { padding-left: 2.75rem !important; }
+.pl-12 { padding-left: 3rem !important; }
+
+.pr-0 { padding-right: 0 !important; }
+.pr-1 { padding-right: var(--space-1) !important; }
+.pr-2 { padding-right: var(--space-2) !important; }
+.pr-3 { padding-right: var(--space-3) !important; }
+.pr-3\.5 { padding-right: var(--space-3-5) !important; }
+.pr-4 { padding-right: var(--space-4) !important; }
+.pr-5 { padding-right: var(--space-5) !important; }
+.pr-6 { padding-right: var(--space-6) !important; }
+.pr-8 { padding-right: var(--space-8) !important; }
+.pr-10 { padding-right: 2.5rem !important; }
+.pr-11 { padding-right: 2.75rem !important; }
+.pr-12 { padding-right: 3rem !important; }
+
 /* Flexbox */
 .flex {
   display: flex;
@@ -890,6 +975,179 @@ textarea {
   color: #FFFFFF !important;
 }
 
+.bg-emerald-700 {
+  background-color: #047857 !important;
+  color: #FFFFFF !important;
+}
+
+.bg-emerald-800 {
+  background-color: #065F46 !important;
+  color: #FFFFFF !important;
+}
+
+.bg-emerald-900 {
+  background-color: #064E3B !important;
+  color: #FFFFFF !important;
+}
+
+.hover\:bg-emerald-700:hover {
+  background-color: #047857 !important;
+}
+
+.hover\:bg-emerald-800:hover {
+  background-color: #065F46 !important;
+}
+
+.active\:bg-emerald-900:active {
+  background-color: #064E3B !important;
+}
+
+.hover\:bg-blue-50:hover {
+  background-color: var(--primary-50) !important;
+}
+
+.hover\:bg-blue-700:hover {
+  background-color: var(--primary-700) !important;
+}
+
+.hover\:bg-slate-50:hover {
+  background-color: var(--slate-50) !important;
+}
+
+.hover\:bg-slate-100:hover {
+  background-color: var(--slate-100) !important;
+}
+
+.hover\:bg-rose-50:hover {
+  background-color: var(--danger-50) !important;
+}
+
+.hover\:text-slate-700:hover {
+  color: var(--slate-700) !important;
+}
+
+.hover\:text-slate-900:hover {
+  color: var(--slate-900) !important;
+}
+
+.text-rose-500 {
+  color: var(--danger-500) !important;
+}
+
+.bg-rose-500 {
+  background-color: var(--danger-500) !important;
+}
+
+.text-emerald-700 {
+  color: #047857 !important;
+}
+
+.text-emerald-800 {
+  color: #065F46 !important;
+}
+
+.text-emerald-900 {
+  color: #064E3B !important;
+}
+
+.bg-purple-50 {
+  background-color: #FAF5FF !important;
+}
+
+.text-purple-700 {
+  color: #7E22CE !important;
+}
+
+.shadow-2xs {
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.05) !important;
+}
+
+.shadow-2xl {
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25) !important;
+}
+
+.font-black {
+  font-weight: 900 !important;
+}
+
+.font-sans {
+  font-family: var(--font-body) !important;
+}
+
+.tracking-wider {
+  letter-spacing: 0.05em !important;
+}
+
+.transition-all {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.text-\[10px\] {
+  font-size: 10px !important;
+}
+
+.text-\[11px\] {
+  font-size: 11px !important;
+}
+
+.-translate-y-1\/2 {
+  transform: translateY(-50%) !important;
+}
+
+.top-1\/2 {
+  top: 50% !important;
+}
+
+.left-3\.5 {
+  left: 0.875rem !important;
+}
+
+.min-h-\[42px\] {
+  min-height: 42px !important;
+}
+
+.min-h-\[96px\] {
+  min-height: 96px !important;
+}
+
+.my-2\.5 {
+  margin-top: 0.625rem !important;
+  margin-bottom: 0.625rem !important;
+}
+
+.pb-1 {
+  padding-bottom: 0.25rem !important;
+}
+
+.pb-3 {
+  padding-bottom: 0.75rem !important;
+}
+
+.pb-3\.5 {
+  padding-bottom: 0.875rem !important;
+}
+
+.pt-3\.5 {
+  padding-top: 0.875rem !important;
+}
+
+.space-y-1 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.25rem !important;
+}
+
+.space-y-3\.5 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.875rem !important;
+}
+
+.w-\[95\%\] {
+  width: 95% !important;
+}
+
+.disabled\:opacity-60:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
 .bg-amber-50 {
   background-color: var(--warning-50) !important;
 }
@@ -936,6 +1194,14 @@ textarea {
   border-color: var(--slate-300) !important;
 }
 
+.border-2 {
+  border-width: 2px !important;
+}
+
+.border-blue-100 {
+  border-color: var(--primary-100) !important;
+}
+
 .border-blue-200 {
   border-color: var(--primary-200) !important;
 }
@@ -948,12 +1214,36 @@ textarea {
   border-color: var(--primary-600) !important;
 }
 
+.border-emerald-100 {
+  border-color: var(--success-100) !important;
+}
+
 .border-emerald-200 {
   border-color: var(--success-200) !important;
 }
 
+.border-emerald-300 {
+  border-color: var(--success-300) !important;
+}
+
+.border-emerald-500 {
+  border-color: var(--success-500) !important;
+}
+
 .border-emerald-600 {
   border-color: var(--success-600) !important;
+}
+
+.border-emerald-700 {
+  border-color: var(--success-700) !important;
+}
+
+.border-amber-100 {
+  border-color: var(--warning-100) !important;
+}
+
+.border-purple-100 {
+  border-color: #F3E8FF !important;
 }
 
 .border-amber-200 {
@@ -1718,27 +2008,31 @@ button {
 }
 
 .badge-emerald {
-  background-color: #ECFDF5;
-  color: #065F46;
-  border: 1px solid #A7F3D0;
+  background-color: #DCFCE7;
+  color: #14532D;
+  border: 1.5px solid #22C55E;
+  font-weight: 700;
 }
 
 .badge-amber {
-  background-color: #FFFBEB;
-  color: #92400E;
-  border: 1px solid #FDE68A;
+  background-color: #FEF3C7;
+  color: #78350F;
+  border: 1.5px solid #F59E0B;
+  font-weight: 700;
 }
 
 .badge-rose {
-  background-color: #FFF1F2;
-  color: #9F1239;
-  border: 1px solid #FECDD3;
+  background-color: #FFE4E6;
+  color: #881337;
+  border: 1.5px solid #F43F5E;
+  font-weight: 700;
 }
 
 .badge-indigo {
-  background-color: #EFF6FF;
-  color: #1E40AF;
-  border: 1px solid #BFDBFE;
+  background-color: #EEF2FF;
+  color: #312E81;
+  border: 1.5px solid #6366F1;
+  font-weight: 700;
 }
 
 .badge-slate {
@@ -7200,7 +7494,53 @@ button:disabled:active,
   font-size: 14px !important;
   font-weight: 500 !important;
   width: 100% !important;
+  padding: 0 16px !important;
+  box-sizing: border-box !important;
   transition: all 0.15s ease !important;
+}
+
+/* Auto-padding for inputs with leading icons */
+.auth-login-card .relative input,
+.auth-register-card .relative input,
+.auth-login-card input.pl-11,
+.auth-register-card input.pl-11 {
+  padding-left: 44px !important;
+}
+
+/* Auto-padding for password fields or inputs with trailing buttons */
+.auth-login-card .relative input[type="password"],
+.auth-login-card input.pr-11,
+.auth-register-card .relative input[type="password"],
+.auth-register-card input.pr-11 {
+  padding-right: 44px !important;
+}
+
+/* Ensure leading icons inside input wrappers stay vertically centered */
+.auth-login-card .relative > svg,
+.auth-register-card .relative > svg {
+  position: absolute !important;
+  left: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: none !important;
+  z-index: 2 !important;
+}
+
+/* Ensure trailing toggle buttons (e.g. eye icon) stay inside the input box */
+.auth-login-card .relative > button,
+.auth-register-card .relative > button {
+  position: absolute !important;
+  right: 12px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  z-index: 3 !important;
+  padding: 4px !important;
 }
 
 .auth-login-card input:focus,
@@ -7212,10 +7552,10 @@ button:disabled:active,
   outline: none !important;
 }
 
-/* Role Selection Tabs */
+/* Role Selection Tabs - 4 equal columns for Student, TG, HOD, Admin */
 .auth-role-tabs {
   display: grid !important;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
   gap: 6px !important;
   padding: 6px !important;
   border-radius: 16px !important;
@@ -7321,5 +7661,35 @@ button:disabled:active,
   .auth-role-tab svg {
     width: 16px !important;
     height: 16px !important;
+  }
+}
+
+/* ==========================================================================
+   Header Notification Dropdown
+   ========================================================================== */
+.notification-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 400px;
+  max-width: calc(100vw - 24px);
+  background-color: #ffffff;
+  border-radius: 1.25rem;
+  border: 1px solid var(--slate-200);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  z-index: 1000;
+  transform-origin: top right;
+  animation: notifDropdownIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes notifDropdownIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
   }
 }

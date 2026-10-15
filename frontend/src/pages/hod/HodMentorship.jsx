@@ -21,6 +21,8 @@ import {
 import AppointTgModal from '../../components/modals/AppointTgModal.jsx';
 import AddFacultyModal from '../../components/modals/AddFacultyModal.jsx';
 import EditFacultyModal from '../../components/modals/EditFacultyModal.jsx';
+import SectionTgMatrixModal from '../../components/modals/SectionTgMatrixModal.jsx';
+import ConfirmRevokeTgModal from '../../components/modals/ConfirmRevokeTgModal.jsx';
 
 export default function HodMentorship() {
   const { addToast } = useERP();
@@ -37,8 +39,12 @@ export default function HodMentorship() {
   // Modals
   const [showAppointModal, setShowAppointModal] = useState(false);
   const [preselectedTeacher, setPreselectedTeacher] = useState(null);
+  const [selectedCohort, setSelectedCohort] = useState(null);
+  const [isChangeSection, setIsChangeSection] = useState(false);
   const [showAddFacultyModal, setShowAddFacultyModal] = useState(false);
   const [facultyToEdit, setFacultyToEdit] = useState(null);
+  const [showMatrixModal, setShowMatrixModal] = useState(false);
+  const [revokeTarget, setRevokeTarget] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -61,20 +67,33 @@ export default function HodMentorship() {
     fetchData();
   }, []);
 
-  // Map of teacher IDs who are TGs
-  const tgTeacherIds = new Set(groups.map((g) => g.tg?._id || g.tg?.user?._id || g.tg));
-
-  const isTeacherTg = (teacher) => {
-    return (
-      teacher.isTG ||
-      tgTeacherIds.has(teacher._id) ||
-      tgTeacherIds.has(teacher.user?._id) ||
-      groups.some((g) => (g.tg?._id || g.tg) === teacher._id)
-    );
-  };
+  // Active cohorts & TG IDs
+  const activeCohorts = groups.filter((g) => g.isActive !== false);
+  const activeTgIds = new Set(
+    activeCohorts
+      .map((g) => (g.tg?._id || g.tg?.user?._id || g.tg)?.toString())
+      .filter(Boolean)
+  );
 
   const getTeacherCohort = (teacher) => {
-    return groups.find((g) => (g.tg?._id || g.tg) === teacher._id);
+    if (!teacher) return null;
+    const tId = teacher._id?.toString();
+    const uId = teacher.user?._id?.toString();
+    return activeCohorts.find((g) => {
+      const gid = (g.tg?._id || g.tg)?.toString();
+      const guid = g.tg?.user?._id?.toString();
+      return (tId && (gid === tId || guid === tId)) || (uId && (gid === uId || guid === uId));
+    });
+  };
+
+  const isTeacherTg = (teacher) => {
+    if (!teacher) return false;
+    const tId = teacher._id?.toString();
+    const uId = teacher.user?._id?.toString();
+    const hasActiveGroup = (tId && activeTgIds.has(tId)) || (uId && activeTgIds.has(uId));
+    if (hasActiveGroup) return true;
+    if (!teacher.isTG) return false;
+    return !!teacher.isTG;
   };
 
   const activeTgs = teachers.filter((t) => isTeacherTg(t));
@@ -92,31 +111,12 @@ export default function HodMentorship() {
     return !q || name.includes(q) || email.includes(q) || desig.includes(q);
   });
 
-  const handleRevokeTg = async (teacher) => {
-    const facultyName = teacher.user?.name || teacher.designation || 'Faculty Member';
-    if (!window.confirm(`Revoke Tutor Guardian appointment for ${facultyName}?`)) {
-      return;
-    }
-
-    try {
-      const cohort = getTeacherCohort(teacher);
-      if (cohort?._id) {
-        await mentorshipApi.deleteGroup(cohort._id);
-      }
-      await masterDataApi.updateTeacher(teacher._id, { isTG: false });
-      addToast(
-        'TG Appointment Revoked',
-        `${facultyName} has been returned to standard faculty status.`,
-        'info'
-      );
-      fetchData();
-    } catch (err) {
-      addToast('Error', err.response?.data?.error?.message || err.message || 'Failed to revoke TG appointment.', 'danger');
-    }
+  const handleRevokeTg = (teacher) => {
+    const cohort = getTeacherCohort(teacher);
+    setRevokeTarget({ teacher, cohort });
   };
 
   // Compute mentored section label
-  const activeCohorts = groups.filter((g) => g.isActive !== false);
   const mentoredSectionLabel = activeCohorts.length > 0
     ? (() => {
         const g = activeCohorts[0];
@@ -160,15 +160,26 @@ export default function HodMentorship() {
           </div>
         </div>
 
-        {/* Stat 3: Mentored Sections (proper responsive truncation so text never overflows) */}
-        <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3.5 min-h-[96px] overflow-hidden">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center shrink-0">
+        {/* Stat 3: Mentored Sections with Click-to-Open Section ↔ TG Matrix Table */}
+        <div
+          onClick={() => setShowMatrixModal(true)}
+          className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center gap-3.5 min-h-[96px] overflow-hidden cursor-pointer hover:border-purple-300 hover:shadow-md transition-all group"
+          role="button"
+          tabIndex={0}
+          title="Click to view and manage Section ↔ Tutor Guardian Allocation Matrix"
+        >
+          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
             <GraduationCap size={22} />
           </div>
           <div className="min-w-0 flex-1">
-            <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
-              MENTORED SECTION
-            </span>
+            <div className="flex items-center justify-between gap-1">
+              <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                MENTORED SECTION
+              </span>
+              <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 whitespace-nowrap">
+                View Matrix
+              </span>
+            </div>
             <span className="block text-base sm:text-lg font-black text-slate-900 mt-0.5 truncate" title={mentoredSectionLabel}>
               {mentoredSectionLabel}
             </span>
@@ -191,55 +202,74 @@ export default function HodMentorship() {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar matching Image 3 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Left Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
           <button
             type="button"
             onClick={() => setActiveTab('all')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            style={
               activeTab === 'all'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-            }`}
+                ? { backgroundColor: '#1D4ED8', color: '#ffffff', borderColor: '#1D4ED8' }
+                : { backgroundColor: '#ffffff', color: '#334155', borderColor: '#CBD5E1' }
+            }
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shadow-2xs"
           >
             All Faculty ({teachers.length || 5})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('tg')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            style={
               activeTab === 'tg'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-            }`}
+                ? { backgroundColor: '#1D4ED8', color: '#ffffff', borderColor: '#1D4ED8' }
+                : { backgroundColor: '#ffffff', color: '#334155', borderColor: '#CBD5E1' }
+            }
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shadow-2xs"
           >
             Tutor Guardians ({activeTgs.length || 1})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('standard')}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
+            style={
               activeTab === 'standard'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-            }`}
+                ? { backgroundColor: '#1D4ED8', color: '#ffffff', borderColor: '#1D4ED8' }
+                : { backgroundColor: '#ffffff', color: '#334155', borderColor: '#CBD5E1' }
+            }
+            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer border shadow-2xs"
           >
             Standard Faculty ({standardFaculty.length || 4})
           </button>
         </div>
 
-        {/* Search Input on Right */}
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search faculty by name, email, or designation..."
-            className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none transition-all font-medium min-h-[42px] shadow-2xs"
-          />
+        {/* Search Input and Add Faculty Button on Right */}
+        <div className="flex items-center gap-2.5 flex-1 max-w-lg">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search faculty by name, email, or designation..."
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none transition-all font-medium min-h-[42px] shadow-2xs"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowAddFacultyModal(true)}
+            style={{
+              backgroundColor: '#1D4ED8',
+              color: '#ffffff',
+              borderColor: '#1D4ED8',
+            }}
+            className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-xs cursor-pointer hover:bg-blue-700 transition-all border shrink-0 text-white"
+          >
+            <Plus size={16} className="text-white" />
+            <span className="text-white hidden sm:inline">Add Faculty</span>
+          </button>
         </div>
       </div>
 
@@ -262,7 +292,11 @@ export default function HodMentorship() {
             const designation = t.designation || (isTg ? 'Assistant Professor (TG)' : 'Assistant Professor');
 
             const cohortSemester = cohort?.semester || cohort?.section?.semester || 5;
-            const cohortSection = cohort?.section?.name || cohort?.section?.code || (cohort?.name?.includes('CSE-') ? `Section ${cohort.name.split('CSE-')[1]}` : 'Section B');
+            const cohortSection = cohort?.section?.name
+              ? cohort.section.name
+              : cohort?.section?.code
+              ? `Section ${cohort.section.code.replace('CSE-', '')}`
+              : (cohort?.name?.includes('CSE-') ? `Section ${cohort.name.split('CSE-')[1]}` : 'Section A');
             const cohortLabel = `Semester ${cohortSemester} • ${cohortSection}`;
 
             return (
@@ -340,33 +374,53 @@ export default function HodMentorship() {
                   </div>
                 </div>
 
-                {/* Bottom Actions Row matching Image 3 & Image 4 */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 mt-2">
+                {/* Bottom Actions Row: compact, responsive, never breaks horizontally or misaligns */}
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-1.5 mt-auto">
                   <button
                     type="button"
                     onClick={() => setFacultyToEdit(t)}
-                    className="px-3.5 py-2 rounded-xl border border-blue-600 bg-white hover:bg-blue-50 text-blue-600 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      color: '#1D4ED8',
+                      borderColor: '#93C5FD',
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg border text-blue-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs hover:bg-blue-50 shrink-0"
+                    title="Edit faculty profile"
                   >
-                    <Edit2 size={13} />
+                    <Edit2 size={12} />
                     <span>Edit</span>
                   </button>
 
                   {isTg ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
                         onClick={() => {
                           setPreselectedTeacher(t);
+                          setSelectedCohort(cohort);
+                          setIsChangeSection(true);
                           setShowAppointModal(true);
                         }}
-                        className="px-3 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                        style={{
+                          backgroundColor: '#EEF2FF',
+                          color: '#1D4ED8',
+                          borderColor: '#C7D2FE',
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg border text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
+                        title="Change assigned section"
                       >
                         Change Section
                       </button>
                       <button
                         type="button"
                         onClick={() => handleRevokeTg(t)}
-                        className="px-3 py-2 rounded-xl border border-rose-200 bg-white hover:bg-rose-50 text-rose-600 text-xs font-bold transition-colors cursor-pointer"
+                        style={{
+                          backgroundColor: '#FFF1F2',
+                          color: '#BE123C',
+                          borderColor: '#FECDD3',
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg border text-rose-700 text-xs font-bold hover:bg-rose-100 transition-colors cursor-pointer shadow-2xs whitespace-nowrap"
+                        title="Revoke Tutor Guardian appointment"
                       >
                         Revoke TG
                       </button>
@@ -376,12 +430,20 @@ export default function HodMentorship() {
                       type="button"
                       onClick={() => {
                         setPreselectedTeacher(t);
+                        setSelectedCohort(null);
+                        setIsChangeSection(false);
                         setShowAppointModal(true);
                       }}
-                      className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white text-xs font-bold flex items-center gap-1.5 transition-colors shadow-2xs cursor-pointer"
+                      style={{
+                        backgroundColor: '#047857',
+                        color: '#ffffff',
+                        borderColor: '#065F46',
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-2xs cursor-pointer border hover:bg-emerald-800 whitespace-nowrap"
+                      title="Appoint as Tutor Guardian"
                     >
-                      <ShieldCheck size={14} />
-                      <span>Appoint as TG</span>
+                      <ShieldCheck size={13} className="text-white" />
+                      <span className="text-white">Appoint as TG</span>
                     </button>
                   )}
                 </div>
@@ -408,9 +470,19 @@ export default function HodMentorship() {
         <AppointTgModal
           teachers={teachers}
           preselectedTeacher={preselectedTeacher}
-          onClose={() => setShowAppointModal(false)}
+          existingCohort={selectedCohort}
+          isChangeSection={isChangeSection}
+          onClose={() => {
+            setShowAppointModal(false);
+            setPreselectedTeacher(null);
+            setSelectedCohort(null);
+            setIsChangeSection(false);
+          }}
           onSuccess={() => {
             setShowAppointModal(false);
+            setPreselectedTeacher(null);
+            setSelectedCohort(null);
+            setIsChangeSection(false);
             fetchData();
           }}
         />
@@ -422,6 +494,47 @@ export default function HodMentorship() {
           onClose={() => setShowAddFacultyModal(false)}
           onSuccess={() => {
             setShowAddFacultyModal(false);
+            fetchData();
+          }}
+        />
+      )}
+
+      {/* Section ↔ TG Matrix Table Modal (matching user sketch & stat card 3) */}
+      {showMatrixModal && (
+        <SectionTgMatrixModal
+          initialSemester={5}
+          teachers={teachers}
+          groups={activeCohorts}
+          onClose={() => setShowMatrixModal(false)}
+          onChangeSectionForTeacher={(teacher, cohort) => {
+            setShowMatrixModal(false);
+            setPreselectedTeacher(teacher);
+            setSelectedCohort(cohort);
+            setIsChangeSection(true);
+            setShowAppointModal(true);
+          }}
+          onRevokeTg={(teacher, cohort) => {
+            setShowMatrixModal(false);
+            setRevokeTarget({ teacher, cohort });
+          }}
+          onAppointForSection={(sec) => {
+            setShowMatrixModal(false);
+            setSelectedCohort({ section: sec.name || sec.code || 'Section A', semester: sec.semester || 5 });
+            setPreselectedTeacher(null);
+            setIsChangeSection(false);
+            setShowAppointModal(true);
+          }}
+        />
+      )}
+
+      {/* In-app Revoke TG Confirmation Modal */}
+      {revokeTarget && (
+        <ConfirmRevokeTgModal
+          teacher={revokeTarget.teacher}
+          cohort={revokeTarget.cohort}
+          onClose={() => setRevokeTarget(null)}
+          onSuccess={() => {
+            setRevokeTarget(null);
             fetchData();
           }}
         />

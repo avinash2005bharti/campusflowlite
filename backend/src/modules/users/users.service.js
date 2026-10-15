@@ -2,7 +2,10 @@ import User from '../../models/User.js';
 import Student from '../../models/Student.js';
 import Teacher from '../../models/Teacher.js';
 import Section from '../../models/Section.js';
+import Notification from '../../models/Notification.js';
 import ApiError from '../../utils/ApiError.js';
+import { sendTemporaryPasswordEmail } from '../../utils/sendEmail.js';
+import { emitNotification } from '../../sockets/emitters.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 
 export const listUsers = async (query) => {
@@ -98,6 +101,29 @@ export const resetPassword = async (id, customPassword = null) => {
   user.passwordHash = await User.hashPassword(newPassword);
   user.mustChangePassword = true;
   await user.save();
+
+  // Send temporary password to student via email
+  if (user.email) {
+    try {
+      await sendTemporaryPasswordEmail(user.email, newPassword, user.name);
+    } catch (err) {
+      console.error('[Send Temp Password Email Error]:', err.message);
+    }
+  }
+
+  // Create in-app notification
+  try {
+    const notif = await Notification.create({
+      user: user._id,
+      title: 'Password Reset by Department',
+      message: `Your account password was reset by administration. Your temporary password was emailed to ${user.email}.`,
+      type: 'SYSTEM',
+      link: '/student/profile',
+    });
+    emitNotification(user._id.toString(), notif);
+  } catch (err) {
+    // Ignore notification error if offline
+  }
 
   return { message: 'Password reset successfully', tempPassword: newPassword };
 };

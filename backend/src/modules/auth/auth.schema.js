@@ -18,6 +18,21 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address').toLowerCase().trim(),
 });
 
+export const verifyOtpSchema = z.object({
+  email: z.string().email('Please enter a valid email address').toLowerCase().trim(),
+  otp: z.union([z.string(), z.number()]).transform((val) => String(val).trim()),
+});
+
+export const resetPasswordSchema = z.object({
+  email: z.string().email('Please enter a valid email address').toLowerCase().trim(),
+  otp: z.union([z.string(), z.number()]).transform((val) => String(val).trim()),
+  newPassword: z
+    .string()
+    .min(8, 'New password must be at least 8 characters long')
+    .regex(/[A-Z]/, 'New password must contain at least one uppercase letter')
+    .regex(/[0-9]/, 'New password must contain at least one number'),
+});
+
 export const registerStudentSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100).trim(),
   email: z.string().email('Please enter a valid email address').toLowerCase().trim(),
@@ -26,14 +41,15 @@ export const registerStudentSchema = z.object({
     .min(8, 'Password must be at least 8 characters long')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
-  rollNumber: z.string().min(1, 'Roll Number is required').trim().optional(),
-  enrollment_no: z.string().trim().optional(),
-  year: z.union([z.string(), z.number()]).optional(),
-  semester: z.union([z.string(), z.number()]).optional(),
-  section: z.string().trim().optional(),
-  batch: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
-  enrollmentYear: z.union([z.string(), z.number()]).optional(),
+  rollNumber: z.string().trim().nullish(),
+  enrollment_no: z.string().trim().nullish(),
+  year: z.union([z.string(), z.number()]).nullish(),
+  semester: z.union([z.string(), z.number()]).nullish(),
+  section: z.string().trim().nullish(),
+  batch: z.string().trim().nullish(),
+  phone: z.union([z.string(), z.number()]).nullish().transform((v) => (v != null ? String(v).trim() : null)),
+  enrollmentYear: z.union([z.string(), z.number()]).nullish(),
+  otp: z.union([z.string(), z.number()]).nullish().transform((v) => (v != null ? String(v).trim() : undefined)),
 });
 
 export const registerTeacherSchema = z.object({
@@ -44,16 +60,19 @@ export const registerTeacherSchema = z.object({
     .min(8, 'Password must be at least 8 characters long')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[0-9]/, 'Password must contain at least one number'),
-  employeeId: z.string().trim().optional(),
-  designation: z.string().trim().optional(),
-  specialization: z.string().trim().optional(),
-  phone: z.string().trim().optional(),
+  employeeId: z.string().trim().nullish(),
+  designation: z.string().trim().nullish(),
+  specialization: z.string().trim().nullish(),
+  phone: z.union([z.string(), z.number()]).nullish().transform((v) => (v != null ? String(v).trim() : null)),
 });
 
 export default {
   loginSchema,
   changePasswordSchema,
   forgotPasswordSchema,
+  resetPasswordSchema,
+  verifyOtpSchema,
   registerStudentSchema,
   registerTeacherSchema,
 };
+

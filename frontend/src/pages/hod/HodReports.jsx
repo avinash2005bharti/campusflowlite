@@ -88,7 +88,7 @@ export default function HodReports() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 font-sans">
+    <div className="flex flex-col gap-6 w-full min-w-0 font-sans">
       <PageHeader
         title="Department Academic Reports"
         description="Audit-grade attendance consideration and leave reports with real-time Excel spreadsheet export."

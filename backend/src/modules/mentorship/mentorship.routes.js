@@ -39,6 +39,15 @@ router.post(
 );
 
 router.put(
+  '/:id',
+  authorize('HOD', 'ADMIN'),
+  asyncHandler(async (req, res) => {
+    const updated = await mentorshipService.updateMentorGroup(req.params.id, req.body, req.user);
+    return sendSuccess(res, updated);
+  })
+);
+
+router.put(
   '/:id/students',
   authorize('HOD', 'ADMIN'),
   asyncHandler(async (req, res) => {

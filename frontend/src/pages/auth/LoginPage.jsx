@@ -15,6 +15,7 @@ import {
   Landmark,
   CheckCircle2,
 } from 'lucide-react';
+import ForgotPasswordModal from '../../components/modals/ForgotPasswordModal.jsx';
 
 export default function LoginPage() {
   const { login } = useERP();
@@ -29,11 +30,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
   const [forgotNotice, setForgotNotice] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
 
   // Role credentials map for quick access
   const roleAccounts = {
     student: { email: 'avinashbharti3007@gmail.com', pass: 'Password@123' },
-    faculty: { email: 'kavita.teacher@campusflow.edu', pass: 'Password@123' },
     tg: { email: 'test_teacher@mail.in', pass: 'Password@123' },
     hod: { email: 'hod@campusflow.edu', pass: 'Password@123' },
     admin: { email: 'admin@campusflow.edu', pass: 'Password@123' },
@@ -83,10 +84,8 @@ export default function LoginPage() {
         navigate('/admin');
       } else if (role === 'hod') {
         navigate('/hod');
-      } else if (user.isTG) {
+      } else if (user.isTG || role === 'teacher') {
         navigate('/tg');
-      } else if (role === 'teacher') {
-        navigate('/teacher');
       } else {
         navigate('/student');
       }
@@ -229,7 +228,6 @@ export default function LoginPage() {
             <div className="auth-role-tabs">
               {[
                 { id: 'student', label: 'Student', icon: GraduationCap },
-                { id: 'faculty', label: 'Faculty', icon: Building2 },
                 { id: 'tg', label: 'TG', icon: UserCheck },
                 { id: 'hod', label: 'HOD', icon: Landmark },
                 { id: 'admin', label: 'Admin', icon: Shield },
@@ -281,9 +279,7 @@ export default function LoginPage() {
                 <label className="text-xs font-bold text-slate-700">Password</label>
                 <button
                   type="button"
-                  onClick={() =>
-                    setForgotNotice('For password reset, please contact your Tutor Guardian or Department Administration.')
-                  }
+                  onClick={() => setShowForgotModal(true)}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                 >
                   Forgot Password?
@@ -358,6 +354,20 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {showForgotModal && (
+        <ForgotPasswordModal
+          initialEmail={email}
+          onClose={() => setShowForgotModal(false)}
+          onSuccess={(newEmail, newPass, message) => {
+            setEmail(newEmail);
+            setPassword(newPass);
+            setSuccessNotice(message || 'Password reset successfully! You can now log in.');
+            setForgotNotice('');
+            setError('');
+          }}
+        />
+      )}
     </div>
   );
 }

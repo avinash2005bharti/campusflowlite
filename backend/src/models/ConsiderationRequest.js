@@ -4,6 +4,7 @@ export const attachmentSchema = new mongoose.Schema(
   {
     fileId: { type: String, required: true },
     filePath: { type: String, required: true },
+    url: { type: String, default: '' },
     name: { type: String, required: true },
     mimeType: { type: String, required: true },
     size: { type: Number, required: true },
@@ -76,6 +77,48 @@ const considerationRequestSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    timeFrom: {
+      type: String,
+      default: '10:50 AM',
+      trim: true,
+    },
+    timeTo: {
+      type: String,
+      default: '01:20 PM',
+      trim: true,
+    },
+    isGroup: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isGroupMaster: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    groupId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    groupLeader: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Student',
+      default: null,
+    },
+    groupMembers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
+      },
+    ],
+    sectionStudents: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Student',
+      },
+    ],
     description: {
       type: String,
       trim: true,

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import AddStudentModal from '../../components/modals/AddStudentModal.jsx';
 import EditStudentModal from '../../components/modals/EditStudentModal.jsx';
+import { getSectionLetter } from '../../utils/constants.js';
 
 export default function HodStudents() {
   const { addToast } = useERP();
@@ -24,6 +25,7 @@ export default function HodStudents() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('ALL');
   const [sectionFilter, setSectionFilter] = useState('ALL');
 
   // Modals
@@ -34,27 +36,27 @@ export default function HodStudents() {
     {
       _id: 'st-1',
       user: {
-        name: 'Avinash Bharti',
-        email: 'avinashbharti2005@gmail.com',
-        phone: '+918305072434',
+        name: 'Test Student 1',
+        email: 'teststudent1@mail.in',
+        phone: '+91876543210',
         isActive: true,
       },
-      rollNumber: 'CF05/CS24/105',
-      enrollmentNumber: '0103CS241005',
-      section: { name: 'Section B', semester: 5 },
+      rollNumber: '0103CS241001',
+      enrollmentNumber: '0103CS241001',
+      section: { name: 'Section A', semester: 5 },
       semester: 5,
       batch: 'Batch 2023',
     },
     {
       _id: 'st-2',
       user: {
-        name: 'Ayush Mishra',
-        email: 'ayushmishra28122005@gmail.com',
-        phone: '+918305072434',
+        name: 'Avinash Bharti',
+        email: 'avinashbharti3007@gmail.com',
+        phone: '+916200072434',
         isActive: true,
       },
-      rollNumber: 'CF05/CS24/110',
-      enrollmentNumber: '0103CS241010',
+      rollNumber: '0103CS241101',
+      enrollmentNumber: '0103CS241101',
       section: { name: 'Section B', semester: 5 },
       semester: 5,
       batch: 'Batch 2023',
@@ -62,13 +64,13 @@ export default function HodStudents() {
     {
       _id: 'st-3',
       user: {
-        name: 'Ayushi Sahu',
-        email: 'ayushisahu0105@gmail.com',
-        phone: '+918305072434',
+        name: 'Ayush Mishra',
+        email: 'ayushmishra2372005@gmail.com',
+        phone: '+919502378451',
         isActive: true,
       },
-      rollNumber: 'CF05/CS24/113',
-      enrollmentNumber: '0103CS241013',
+      rollNumber: '0103CS241110',
+      enrollmentNumber: '0103CS241110',
       section: { name: 'Section B', semester: 5 },
       semester: 5,
       batch: 'Batch 2023',
@@ -76,13 +78,13 @@ export default function HodStudents() {
     {
       _id: 'st-4',
       user: {
-        name: 'Deepak Sharma',
-        email: 'deepaksharma@mail.in',
-        phone: '+918305072434',
+        name: 'Ayushi Sahu',
+        email: 'sahuayushi535@gmail.com',
+        phone: '+917222961376',
         isActive: true,
       },
-      rollNumber: 'CF05/CS24/114',
-      enrollmentNumber: '0103CS241014',
+      rollNumber: '0103CS241113',
+      enrollmentNumber: '0103CS241113',
       section: { name: 'Section B', semester: 5 },
       semester: 5,
       batch: 'Batch 2023',
@@ -90,14 +92,14 @@ export default function HodStudents() {
     {
       _id: 'st-5',
       user: {
-        name: 'Test Student 2',
-        email: 'test2@mail.in',
-        phone: '+918305072434',
-        isActive: false,
+        name: 'Deepak Sharma',
+        email: 'deepak12@gmail.com',
+        phone: '+919876543210',
+        isActive: true,
       },
-      rollNumber: 'CF05/CS24/102',
-      enrollmentNumber: '0103CS241002',
-      section: { name: 'Section A', semester: 5 },
+      rollNumber: '0103CS241127',
+      enrollmentNumber: '0103CS241127',
+      section: { name: 'Section B', semester: 5 },
       semester: 5,
       batch: 'Batch 2023',
     },
@@ -160,11 +162,14 @@ export default function HodStudents() {
       enrollment.includes(q) ||
       email.includes(q);
 
-    const secName = st.section?.name || st.section?.code || 'B';
     const matchesSection =
-      sectionFilter === 'ALL' || secName.toUpperCase().includes(sectionFilter.toUpperCase());
+      sectionFilter === 'ALL' || getSectionLetter(st.section) === sectionFilter.toUpperCase();
 
-    return matchesSearch && matchesSection;
+    const sem = st.semester || st.section?.semester || 5;
+    const matchesSemester =
+      semesterFilter === 'ALL' || Number(sem) === Number(semesterFilter);
+
+    return matchesSearch && matchesSection && matchesSemester;
   });
 
   return (
@@ -177,7 +182,7 @@ export default function HodStudents() {
               Department Student Directory
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-xs font-black">
-              {students.length} Students
+              {filteredStudents.length} of {students.length} Students
             </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 font-medium m-0">
@@ -208,7 +213,7 @@ export default function HodStudents() {
         </div>
       </div>
 
-      {/* Filter and Search Bar matching Image 1 */}
+      {/* Filter and Search Bar matching Image 1 annotations */}
       <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -222,11 +227,30 @@ export default function HodStudents() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs font-bold text-slate-500 hidden sm:inline">Section:</span>
+          {/* Select Semester Filter matching Image 1 */}
+          <select
+            value={semesterFilter}
+            onChange={(e) => setSemesterFilter(e.target.value)}
+            className="px-3.5 py-2 bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none cursor-pointer min-h-[42px] transition-all shadow-2xs"
+            aria-label="Filter by Semester"
+          >
+            <option value="ALL">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+
+          {/* All Sections Filter matching Image 1 */}
           <select
             value={sectionFilter}
             onChange={(e) => setSectionFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-700 focus:bg-white focus:border-blue-600 focus:outline-none cursor-pointer min-h-[42px]"
+            className="px-3.5 py-2 bg-slate-50 hover:bg-white border border-slate-200 hover:border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none cursor-pointer min-h-[42px] transition-all shadow-2xs"
+            aria-label="Filter by Section"
           >
             <option value="ALL">All Sections</option>
             <option value="A">Section A</option>
@@ -234,6 +258,21 @@ export default function HodStudents() {
             <option value="C">Section C</option>
             <option value="D">Section D</option>
           </select>
+
+          {(semesterFilter !== 'ALL' || sectionFilter !== 'ALL' || search) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSemesterFilter('ALL');
+                setSectionFilter('ALL');
+                setSearch('');
+              }}
+              className="px-2.5 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Reset all filters"
+            >
+              Reset
+            </button>
+          )}
         </div>
       </div>
 

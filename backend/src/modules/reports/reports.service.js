@@ -4,6 +4,8 @@ import LeaveApplication from '../../models/LeaveApplication.js';
 import Student from '../../models/Student.js';
 import Teacher from '../../models/Teacher.js';
 import MentorGroup from '../../models/MentorGroup.js';
+import Section from '../../models/Section.js';
+import Department from '../../models/Department.js';
 import User from '../../models/User.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 import { getTodayIST } from '../../utils/dates.js';
@@ -16,6 +18,16 @@ export const getDashboardSummary = async (user) => {
     const student = await Student.findOne({ user: user.id });
     const studentId = student?._id;
 
+    const studentConsiderationFilter = studentId
+      ? {
+          $or: [
+            { student: studentId },
+            { sectionStudents: studentId },
+            { groupMembers: studentId },
+          ],
+        }
+      : { student: null };
+
     const [
       totalConsiderations,
       pendingConsiderations,
@@ -23,14 +35,56 @@ export const getDashboardSummary = async (user) => {
       totalLeaves,
       pendingLeaves,
       approvedLeaves,
+      approvedConsiderationDocs,
+      pendingConsiderationDocs,
+      approvedLeaveDocs,
     ] = await Promise.all([
-      ConsiderationRequest.countDocuments({ student: studentId }),
-      ConsiderationRequest.countDocuments({ student: studentId, status: 'PENDING' }),
-      ConsiderationRequest.countDocuments({ student: studentId, status: 'APPROVED_BY_HOD' }),
+      ConsiderationRequest.countDocuments(studentConsiderationFilter),
+      ConsiderationRequest.countDocuments({
+        ...studentConsiderationFilter,
+        status: { $in: ['PENDING', 'RECOMMENDED_BY_TG'] },
+      }),
+      ConsiderationRequest.countDocuments({
+        ...studentConsiderationFilter,
+        status: 'APPROVED_BY_HOD',
+      }),
       LeaveApplication.countDocuments({ applicant: user._id }),
-      LeaveApplication.countDocuments({ applicant: user._id, status: 'PENDING' }),
-      LeaveApplication.countDocuments({ applicant: user._id, status: { $in: ['APPROVED_BY_HOD', 'APPROVED'] } }),
+      LeaveApplication.countDocuments({
+        applicant: user._id,
+        status: { $in: ['PENDING', 'RECOMMENDED_BY_TG'] },
+      }),
+      LeaveApplication.countDocuments({
+        applicant: user._id,
+        status: { $in: ['APPROVED_BY_HOD', 'APPROVED'] },
+      }),
+      ConsiderationRequest.find({
+        ...studentConsiderationFilter,
+        status: 'APPROVED_BY_HOD',
+      }).select('requestedPeriods hodReview.approvedPeriods'),
+      ConsiderationRequest.find({
+        ...studentConsiderationFilter,
+        status: { $in: ['PENDING', 'RECOMMENDED_BY_TG'] },
+      }).select('requestedPeriods'),
+      LeaveApplication.find({
+        applicant: user._id,
+        status: { $in: ['APPROVED_BY_HOD', 'APPROVED'] },
+      }).select('totalDays'),
     ]);
+
+    const approvedLectures = approvedConsiderationDocs.reduce(
+      (sum, r) => sum + (r.hodReview?.approvedPeriods ?? r.requestedPeriods ?? 0),
+      0
+    );
+
+    const pendingLectures = pendingConsiderationDocs.reduce(
+      (sum, r) => sum + (r.requestedPeriods ?? 0),
+      0
+    );
+
+    const approvedDays = approvedLeaveDocs.reduce(
+      (sum, l) => sum + (l.totalDays || 0),
+      0
+    );
 
     return {
       role: 'STUDENT',
@@ -38,11 +92,14 @@ export const getDashboardSummary = async (user) => {
         total: totalConsiderations,
         pending: pendingConsiderations,
         approved: approvedConsiderations,
+        approvedLectures,
+        pendingLectures,
       },
       leaves: {
         total: totalLeaves,
         pending: pendingLeaves,
         approved: approvedLeaves,
+        approvedDays,
       },
     };
   }
@@ -76,8 +133,10 @@ export const getDashboardSummary = async (user) => {
       pendingFacultyLeaves,
       pendingHodLeaves,
       onLeaveTodayCount,
+      semesterAggregation,
+      totalStudentsCount,
     ] = await Promise.all([
-      ConsiderationRequest.countDocuments({ status: 'RECOMMENDED_BY_TG' }),
+      ConsiderationRequest.countDocuments({ status: { $in: ['RECOMMENDED_BY_TG', 'PENDING'] } }),
       ConsiderationRequest.countDocuments({ status: 'PENDING', escalated: true }),
       LeaveApplication.countDocuments({ applicantRole: 'STUDENT', status: 'RECOMMENDED_BY_TG' }),
       LeaveApplication.countDocuments({ applicantRole: 'STUDENT', status: 'PENDING', escalated: true }),
@@ -89,6 +148,11 @@ export const getDashboardSummary = async (user) => {
         startDate: { $lte: todayIST },
         endDate: { $gte: todayIST },
       }),
+      Student.aggregate([
+        { $group: { _id: '$semester', count: { $sum: 1 } } },
+        { $sort: { _id: 1 } },
+      ]),
+      Student.countDocuments({}),
     ]);
 
     return {
@@ -100,6 +164,8 @@ export const getDashboardSummary = async (user) => {
       facultyLeavesQueue: pendingFacultyLeaves,
       hodLeavesQueue: pendingHodLeaves,
       facultyOnLeaveToday: onLeaveTodayCount,
+      semesterDistribution: semesterAggregation,
+      totalStudents: totalStudentsCount,
     };
   }
 
@@ -132,9 +198,38 @@ const formatStatus = (status) => {
   return map[status] || status || 'Pending';
 };
 
-export const getConsiderationsReport = async (query) => {
+export const getConsiderationsReport = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
   const filter = {};
+
+  if (user && user.role !== 'HOD' && user.role !== 'ADMIN') {
+    const myGroups = await MentorGroup.find({
+      $or: [{ tg: user._id }, { tg: user.teacherId }],
+      isActive: true,
+    });
+    const mySectionIds = myGroups.map((g) => g.section).filter(Boolean);
+    let myExplicitStudentIds = [];
+    myGroups.forEach((g) => {
+      if (Array.isArray(g.students) && g.students.length > 0) {
+        myExplicitStudentIds.push(...g.students);
+      }
+    });
+
+    const myStudents = await Student.find({
+      $or: [
+        { _id: { $in: myExplicitStudentIds } },
+        { mentorGroup: { $in: myGroups.map((g) => g._id) } },
+        ...(mySectionIds.length > 0 ? [{ section: { $in: mySectionIds } }] : []),
+      ],
+    }).select('_id');
+    const myStudentIds = myStudents.map((s) => s._id);
+
+    if (myStudentIds.length > 0) {
+      filter.student = { $in: myStudentIds };
+    } else {
+      filter.student = null;
+    }
+  }
 
   if (query.status) filter.status = query.status.toUpperCase();
   if (query.type && query.type !== 'ALL') filter.eventType = query.type.toUpperCase();
@@ -170,9 +265,38 @@ export const getConsiderationsReport = async (query) => {
   };
 };
 
-export const getLeavesReport = async (query) => {
+export const getLeavesReport = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
   const filter = {};
+
+  if (user && user.role !== 'HOD' && user.role !== 'ADMIN') {
+    const myGroups = await MentorGroup.find({
+      $or: [{ tg: user._id }, { tg: user.teacherId }],
+      isActive: true,
+    });
+    const mySectionIds = myGroups.map((g) => g.section).filter(Boolean);
+    let myExplicitStudentIds = [];
+    myGroups.forEach((g) => {
+      if (Array.isArray(g.students) && g.students.length > 0) {
+        myExplicitStudentIds.push(...g.students);
+      }
+    });
+
+    const myStudents = await Student.find({
+      $or: [
+        { _id: { $in: myExplicitStudentIds } },
+        { mentorGroup: { $in: myGroups.map((g) => g._id) } },
+        ...(mySectionIds.length > 0 ? [{ section: { $in: mySectionIds } }] : []),
+      ],
+    }).select('_id');
+    const myStudentIds = myStudents.map((s) => s._id);
+
+    if (myStudentIds.length > 0) {
+      filter.student = { $in: myStudentIds };
+    } else {
+      filter.student = null;
+    }
+  }
 
   if (query.status) filter.status = query.status.toUpperCase();
   if (query.role) filter.applicantRole = query.role.toUpperCase();
@@ -372,10 +496,92 @@ export const exportLeavesToExcel = async (query, res) => {
   res.end();
 };
 
+export const exportFacultyToExcel = async (res) => {
+  const [teachers, activeGroups] = await Promise.all([
+    Teacher.find()
+      .populate('user', 'name email phone isActive role')
+      .populate('department', 'name code')
+      .sort({ createdAt: 1 }),
+    MentorGroup.find({ isActive: true })
+      .populate('section', 'name code semester')
+      .populate('tg', '_id user'),
+  ]);
+
+  const tgGroupMap = new Map();
+  activeGroups.forEach((g) => {
+    const tid = (g.tg?._id || g.tg)?.toString();
+    if (tid) {
+      const sem = g.semester || g.section?.semester || 5;
+      const sec = g.section?.name || (g.section?.code ? `Section ${g.section.code.replace('CSE-', '')}` : 'Section B');
+      tgGroupMap.set(tid, `Semester ${sem} • ${sec}`);
+    }
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Faculty Directory');
+
+  worksheet.columns = [
+    { header: 'Faculty Name', key: 'name', width: 26 },
+    { header: 'Employee ID', key: 'employeeId', width: 18 },
+    { header: 'Designation', key: 'designation', width: 26 },
+    { header: 'Department', key: 'department', width: 32 },
+    { header: 'Institutional Role', key: 'role', width: 24 },
+    { header: 'Mentored Cohort', key: 'cohort', width: 24 },
+    { header: 'Email Address', key: 'email', width: 30 },
+    { header: 'Phone Number', key: 'phone', width: 18 },
+    { header: 'Account Status', key: 'status', width: 16 },
+  ];
+
+  // Header styling with professional navy theme
+  worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  worksheet.getRow(1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF1E40AF' }, // Navy blue
+  };
+  worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+  worksheet.getRow(1).height = 26;
+
+  teachers.forEach((t) => {
+    const facultyName = t.user?.name || t.designation || 'Faculty Member';
+    const isHod = t.user?.role === 'HOD' || t.designation?.toLowerCase().includes('head');
+    const isTg = Boolean(t.isTG || tgGroupMap.has(t._id.toString()));
+    const cohort = tgGroupMap.get(t._id.toString()) || (isTg ? 'Active TG' : 'N/A');
+    const role = isHod ? 'Head of Department' : (isTg ? 'Tutor Guardian (TG)' : 'Faculty Member');
+
+    const row = worksheet.addRow({
+      name: facultyName,
+      employeeId: t.employeeId || 'Not provided',
+      designation: t.designation || 'Assistant Professor',
+      department: t.department?.name || 'Computer Science & Engineering',
+      role,
+      cohort,
+      email: t.user?.email || 'Not provided',
+      phone: t.user?.phone || 'Not provided',
+      status: t.user?.isActive !== false ? 'Active' : 'Inactive',
+    });
+
+    row.alignment = { vertical: 'middle' };
+  });
+
+  res.setHeader(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  );
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="faculty-directory-${Date.now()}.xlsx"`
+  );
+
+  await workbook.xlsx.write(res);
+  res.end();
+};
+
 export default {
   getDashboardSummary,
   getConsiderationsReport,
   getLeavesReport,
   exportConsiderationsToExcel,
   exportLeavesToExcel,
+  exportFacultyToExcel,
 };

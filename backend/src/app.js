@@ -22,6 +22,7 @@ import considerationsRoutes from './modules/considerations/considerations.routes
 import leavesRoutes from './modules/leaves/leaves.routes.js';
 import uploadsRoutes from './modules/uploads/uploads.routes.js';
 import notificationsRoutes from './modules/notifications/notifications.routes.js';
+import noticesRoutes from './modules/notices/notices.routes.js';
 import { dashboardRouter, reportsRouter } from './modules/reports/reports.routes.js';
 import importRoutes from './modules/import/import.routes.js';
 import auditRoutes from './modules/audit/audit.routes.js';
@@ -73,6 +74,7 @@ app.use('/api/v1/considerations', considerationsRoutes);
 app.use('/api/v1/leaves', leavesRoutes);
 app.use('/api/v1/uploads', uploadsRoutes);
 app.use('/api/v1/notifications', notificationsRoutes);
+app.use('/api/v1/notices', noticesRoutes);
 app.use('/api/v1/dashboard', dashboardRouter);
 app.use('/api/v1/reports', reportsRouter);
 app.use('/api/v1/import', importRoutes);

@@ -111,7 +111,7 @@ export default function TeacherDashboard() {
                   Appointed Teacher Guardian (TG)
                 </h3>
                 <p className="text-xs text-blue-100">
-                  You are designated as Teacher Guardian for student mentee cohorts. Click below to review pending student requests.
+                  You are designated as Tutor Guardian for assigned student cohorts. Click below to review pending student requests.
                 </p>
               </div>
             </div>
@@ -121,7 +121,7 @@ export default function TeacherDashboard() {
               onClick={() => navigate('/tg/requests')}
               className="bg-white text-blue-700 hover:bg-blue-50 border-white text-xs font-black shrink-0"
             >
-              Review Mentee Requests
+              Review Student Requests
               <ArrowRight size={14} />
             </Button>
           </div>

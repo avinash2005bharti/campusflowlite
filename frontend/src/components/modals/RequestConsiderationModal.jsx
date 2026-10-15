@@ -1,129 +1,234 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext.jsx';
-import { considerationApi } from '../../api';
-import { X, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { considerationApi, masterDataApi } from '../../api';
+import {
+  X,
+  Sparkles,
+  AlertCircle,
+  CheckCircle2,
+  Calendar,
+  FileText,
+  Clock,
+  Users,
+  User,
+  Search,
+  Check,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import { DocumentUploader } from '../common';
 
 export default function RequestConsiderationModal({ onClose, onSuccess }) {
-  const { addToast } = useERP();
+  const { currentUser, addToast } = useERP();
 
-  const [category, setCategory] = useState('Academic On-Duty (OD) / Workshop');
+  const [applicationType, setApplicationType] = useState('INDIVIDUAL'); // 'INDIVIDUAL' | 'GROUP'
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventType, setEventType] = useState('HACKATHON');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
-  
-  // Default selected periods: Period 2, 3, 4 as shown in screenshot
-  const [selectedPeriods, setSelectedPeriods] = useState(['P2', 'P3', 'P4']);
+  const [timeFrom, setTimeFrom] = useState('10:50 AM');
+  const [timeTo, setTimeTo] = useState('01:20 PM');
+  const [lecturesCount, setLecturesCount] = useState(1);
   const [description, setDescription] = useState('');
   const [attachment, setAttachment] = useState(null);
+
+  // Group Members state
+  const [allStudents, setAllStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [searchStudentQuery, setSearchStudentQuery] = useState('');
+  const [semFilter, setSemFilter] = useState('ALL');
+  const [secFilter, setSecFilter] = useState('ALL');
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
-  const periodsList = [
-    { id: 'P1', number: 1, time: '10:00 AM – 10:50 AM', session: 'morning' },
-    { id: 'P2', number: 2, time: '10:50 AM – 11:40 AM', session: 'morning' },
-    { id: 'P3', number: 3, time: '11:40 AM – 12:30 PM', session: 'morning' },
-    { id: 'P4', number: 4, time: '12:30 PM – 01:20 PM', session: 'morning' },
-    { id: 'P5', number: 5, time: '02:00 PM – 02:50 PM', session: 'afternoon' },
-    { id: 'P6', number: 6, time: '02:50 PM – 03:40 PM', session: 'afternoon' },
-    { id: 'P7', number: 7, time: '03:40 PM – 04:30 PM', session: 'afternoon' },
+  const quickLecturePresets = [1, 2, 3, 4, 6, 7];
+  const timePresets = [
+    { label: 'Morning (10:50 AM - 01:20 PM)', from: '10:50 AM', to: '01:20 PM' },
+    { label: 'Afternoon (01:40 PM - 04:10 PM)', from: '01:40 PM', to: '04:10 PM' },
+    { label: 'Full Day (10:00 AM - 04:30 PM)', from: '10:00 AM', to: '04:30 PM' },
   ];
 
-  const togglePeriod = (pId) => {
-    setSelectedPeriods((prev) =>
-      prev.includes(pId) ? prev.filter((id) => id !== pId) : [...prev, pId].sort()
-    );
+  // Fetch all students directory when Group mode is active
+  useEffect(() => {
+    if (applicationType === 'GROUP' && allStudents.length === 0) {
+      setLoadingStudents(true);
+      masterDataApi
+        .getStudents({ limit: 300 })
+        .then((res) => {
+          const list = res?.data || res?.students || (Array.isArray(res) ? res : []);
+          setAllStudents(Array.isArray(list) ? list : []);
+        })
+        .catch((err) => {
+          console.warn('Failed to load student directory:', err.message);
+        })
+        .finally(() => {
+          setLoadingStudents(false);
+        });
+    }
+  }, [applicationType]);
+
+  const handleStartDateChange = (val) => {
+    setStartDate(val);
+    if (endDate < val) {
+      setEndDate(val);
+    }
   };
 
-  const selectFilter = (type) => {
-    if (type === 'all') setSelectedPeriods(['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']);
-    else if (type === 'morning') setSelectedPeriods(['P1', 'P2', 'P3', 'P4']);
-    else if (type === 'afternoon') setSelectedPeriods(['P5', 'P6', 'P7']);
-    else if (type === 'clear') setSelectedPeriods([]);
+  const currentStudentId = currentUser?.profile?._id || currentUser?.studentId;
+
+  // Filter students candidate list for group selection
+  const filteredCandidates = useMemo(() => {
+    return allStudents.filter((st) => {
+      // Exclude applying student
+      if (currentStudentId && String(st._id) === String(currentStudentId)) return false;
+
+      // Semester filter
+      if (semFilter !== 'ALL') {
+        const targetSem = parseInt(semFilter, 10);
+        const stSem = st.section?.semester || st.semester;
+        if (Number(stSem) !== Number(targetSem)) return false;
+      }
+
+      // Section filter
+      if (secFilter !== 'ALL') {
+        const rawSec = (st.section?.name || st.section?.code || '').toUpperCase();
+        const targetSec = secFilter.toUpperCase().trim();
+        if (!rawSec.includes(targetSec)) return false;
+      }
+
+      // Search query
+      if (searchStudentQuery.trim()) {
+        const q = searchStudentQuery.toLowerCase().trim();
+        const name = (st.user?.name || '').toLowerCase();
+        const roll = (st.rollNumber || '').toLowerCase();
+        const enroll = (st.enrollmentNumber || '').toLowerCase();
+        if (!name.includes(q) && !roll.includes(q) && !enroll.includes(q)) return false;
+      }
+
+      return true;
+    });
+  }, [allStudents, currentStudentId, semFilter, secFilter, searchStudentQuery]);
+
+  const toggleMemberSelection = (st) => {
+    const isAlready = selectedMembers.some((m) => m._id === st._id);
+    if (isAlready) {
+      setSelectedMembers((prev) => prev.filter((m) => m._id !== st._id));
+    } else {
+      setSelectedMembers((prev) => [...prev, st]);
+    }
+  };
+
+  const removeMember = (stId) => {
+    setSelectedMembers((prev) => prev.filter((m) => m._id !== stId));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
 
-    if (selectedPeriods.length === 0) {
-      setFormError('Please select at least one period required for attendance consideration.');
+    const trimmedTitle = eventTitle.trim();
+    if (!trimmedTitle || trimmedTitle.length < 3) {
+      setFormError('Please enter a valid event or activity name (at least 3 characters).');
       return;
     }
 
-    if (!description.trim()) {
-      setFormError('Please provide an activity description and justification.');
+    if (!startDate || !endDate) {
+      setFormError('Please select both start date and end date.');
       return;
     }
 
+    if (endDate < startDate) {
+      setFormError('End date must be the same as or after the start date.');
+      return;
+    }
 
-    // Map UI category to eventType enum
-    let eventType = 'HACKATHON';
-    if (category.includes('Work') || category.includes('Academic')) eventType = 'COLLEGE_DUTY';
-    else if (category.includes('Sports')) eventType = 'SPORTS';
-    else if (category.includes('Cultural')) eventType = 'CULTURAL';
-    else if (category.includes('Duty')) eventType = 'COLLEGE_DUTY';
+    if (!timeFrom.trim() || !timeTo.trim()) {
+      setFormError('Please specify both Time From and Time To for the missed lecture schedule.');
+      return;
+    }
 
-    const periodString = selectedPeriods.join(', ');
-    const timesSummary = selectedPeriods
-      .map((pId) => {
-        const found = periodsList.find((p) => p.id === pId);
-        return `${pId} (${found?.time || ''})`;
-      })
-      .join(', ');
+    const numLectures = parseInt(lecturesCount, 10);
+    if (isNaN(numLectures) || numLectures < 1) {
+      setFormError('Please enter a valid number of lectures (minimum 1).');
+      return;
+    }
+
+    if (applicationType === 'GROUP' && selectedMembers.length === 0) {
+      setFormError('Please select at least one team member to submit a group consideration request.');
+      return;
+    }
+
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription || trimmedDescription.length < 5) {
+      setFormError('Please enter a brief reason or description (at least 5 characters).');
+      return;
+    }
 
     setSubmitting(true);
     try {
       await considerationApi.create({
-        eventTitle: category,
+        eventTitle: trimmedTitle,
         eventType,
         startDate,
         endDate,
-        requestedPeriods: selectedPeriods.length,
-        selectedPeriods,
-        periodTiming: timesSummary,
-        description: `[${category}] ${description.trim()}`,
+        timeFrom: timeFrom.trim(),
+        timeTo: timeTo.trim(),
+        requestedPeriods: numLectures,
+        selectedPeriods: [],
+        periodTiming: `${timeFrom.trim()} - ${timeTo.trim()}`,
+        description: trimmedDescription,
         attachments: attachment ? [attachment] : [],
+        isGroup: applicationType === 'GROUP',
+        groupMembers: applicationType === 'GROUP' ? selectedMembers.map((m) => m._id) : [],
       });
 
+      const memberMsg =
+        applicationType === 'GROUP'
+          ? ` and routed for ${selectedMembers.length + 1} team members to their respective Tutor Guardians`
+          : `. Sent to your Tutor Guardian`;
+
       addToast(
-        'Consideration Request Submitted',
-        `Submitted for ${selectedPeriods.length} period(s). Awaiting Tutor Guardian recommendation.`,
+        'Request Submitted',
+        `Attendance consideration request submitted for ${numLectures} lecture(s)${memberMsg}.`,
         'success'
       );
       if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
-      setFormError(err.message || 'Failed to submit consideration request.');
+      setFormError(err.message || 'Failed to submit attendance consideration request. Please try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={!submitting ? onClose : undefined}>
       <div
-        className="modal-container max-w-xl w-[95%] max-h-[92vh] overflow-y-auto"
+        className="modal-container max-w-2xl w-[95%] max-h-[92vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="modal-header pb-3 border-b border-slate-100 flex items-start justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
-              <Sparkles size={18} />
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100 shadow-2xs">
+              <Sparkles size={20} />
             </div>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 m-0">
-                Request Attendance Consideration (OD)
+                New Attendance Consideration Request
               </h3>
-              <p className="text-xs text-slate-500 m-0">
-                Submit attendance consideration for official college activities
+              <p className="text-xs text-slate-500 m-0 mt-0.5">
+                Apply for official attendance credit for class lectures missed during events & duties
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            disabled={submitting}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40 cursor-pointer"
             aria-label="Close"
           >
             <X size={18} />
@@ -132,168 +237,431 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-3">
           {formError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-center gap-2">
-              <AlertCircle size={15} className="shrink-0" />
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
               <span>{formError}</span>
             </div>
           )}
 
-          {/* Consideration Category */}
+          {/* Application Scope Toggle: Individual vs Group */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Consideration Category
+            <label className="block text-xs font-bold text-slate-800 mb-1.5">
+              Application Type <span className="text-rose-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setApplicationType('INDIVIDUAL')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                  applicationType === 'INDIVIDUAL'
+                    ? 'border-blue-600 bg-blue-50/70 text-blue-900 shadow-xs'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    applicationType === 'INDIVIDUAL'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <User size={16} />
+                </div>
+                <div>
+                  <span className="block text-xs font-black">Individual Request</span>
+                  <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Apply for yourself only
+                  </span>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setApplicationType('GROUP')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                  applicationType === 'GROUP'
+                    ? 'border-purple-600 bg-purple-50/70 text-purple-900 shadow-xs'
+                    : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                }`}
+              >
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                    applicationType === 'GROUP'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <Users size={16} />
+                </div>
+                <div>
+                  <span className="block text-xs font-black">Group / Team Request</span>
+                  <span className="block text-[11px] text-slate-500 mt-0.5 leading-snug">
+                    Include team members from any section
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Group Member Selection Section (Shown if Group selected) */}
+          {applicationType === 'GROUP' && (
+            <div className="p-4 rounded-2xl bg-purple-50/40 border border-purple-200 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-black text-purple-950 m-0 flex items-center gap-1.5">
+                    <Users size={15} className="text-purple-700" />
+                    <span>Select Team Members</span>
+                  </h4>
+                  <p className="text-[11px] text-purple-800/80 m-0 mt-0.5">
+                    Each member's request will be routed to their respective section's Tutor Guardian and HOD.
+                  </p>
+                </div>
+                <span className="text-xs font-black px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 border border-purple-300">
+                  {selectedMembers.length + 1} Total ({selectedMembers.length} added + You)
+                </span>
+              </div>
+
+              {/* Selected Members Chips */}
+              {selectedMembers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl bg-white border border-purple-200">
+                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold">
+                    <span>{currentUser?.name || 'You'} (Lead)</span>
+                  </div>
+                  {selectedMembers.map((m) => (
+                    <div
+                      key={m._id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-50 border border-purple-300 text-purple-900 text-[11px] font-bold"
+                    >
+                      <span>
+                        {m.user?.name} ({m.rollNumber} • {m.section?.name || 'Sec'})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeMember(m._id)}
+                        className="text-purple-500 hover:text-purple-800 cursor-pointer p-0.5"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Candidate Filter Bar: Semester, Section, Search */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Filter Semester
+                  </label>
+                  <select
+                    value={semFilter}
+                    onChange={(e) => setSemFilter(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    <option value="ALL">All Semesters</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={s}>
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Filter Section
+                  </label>
+                  <select
+                    value={secFilter}
+                    onChange={(e) => setSecFilter(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
+                  >
+                    <option value="ALL">All Sections</option>
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
+                    <option value="C">Section C</option>
+                    <option value="D">Section D</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                    Search Student
+                  </label>
+                  <div className="relative">
+                    <Search
+                      size={13}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+                    <input
+                      type="text"
+                      value={searchStudentQuery}
+                      onChange={(e) => setSearchStudentQuery(e.target.value)}
+                      placeholder="Name or roll..."
+                      className="w-full pl-7 pr-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Candidate Roster List */}
+              <div className="max-h-44 overflow-y-auto rounded-xl border border-purple-200 bg-white divide-y divide-slate-100">
+                {loadingStudents ? (
+                  <div className="p-4 text-center text-xs text-slate-400">Loading student directory...</div>
+                ) : filteredCandidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    No matching students found.
+                  </div>
+                ) : (
+                  filteredCandidates.map((st) => {
+                    const isSelected = selectedMembers.some((m) => m._id === st._id);
+                    const secLabel = st.section?.name || st.section?.code || 'Section';
+                    const semLabel = st.section?.semester || st.semester || '5';
+                    return (
+                      <div
+                        key={st._id}
+                        onClick={() => toggleMemberSelection(st)}
+                        className={`p-2.5 flex items-center justify-between hover:bg-purple-50/50 cursor-pointer transition-colors ${
+                          isSelected ? 'bg-purple-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="rounded border-slate-300 text-purple-600 pointer-events-none"
+                          />
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-slate-900 block truncate">
+                              {st.user?.name}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-medium block">
+                              Roll: {st.rollNumber} • Sem {semLabel} • {secLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            isSelected
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {isSelected ? 'Selected' : 'Add'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 1. Event or Activity Name */}
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1">
+              Event / Activity Name <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={eventTitle}
+              onChange={(e) => setEventTitle(e.target.value)}
+              placeholder="e.g., Smart India Hackathon, Annual Sports Meet, Tech Workshop"
+              required
+              disabled={submitting}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
+            />
+          </div>
+
+          {/* 2. Category */}
+          <div>
+            <label className="block text-xs font-bold text-slate-800 mb-1">
+              Activity Category <span className="text-rose-500">*</span>
             </label>
             <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+              disabled={submitting}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
             >
-              <option value="Academic On-Duty (OD) / Workshop">
-                Academic On-Duty (OD) / Workshop
-              </option>
-              <option value="Hackathon / Technical Competition">
-                Hackathon / Technical Competition
-              </option>
-              <option value="Sports / Cultural Event">Sports / Cultural Event</option>
-              <option value="Official College Duty / Assignment">
-                Official College Duty / Assignment
-              </option>
+              <option value="HACKATHON">Hackathon / Technical Competition</option>
+              <option value="SPORTS">Sports Meet / Tournament</option>
+              <option value="CULTURAL">Cultural Event / College Fest</option>
+              <option value="COLLEGE_DUTY">College Duty / Official Assignment</option>
+              <option value="OTHER">Other Academic Activity</option>
             </select>
           </div>
 
-          {/* Absence Start & End Dates */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* 3. Date Range (Start Date & End Date) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Absence Start Date
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                Start Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => handleStartDateChange(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
+                disabled={submitting}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Absence End Date
+              <label className="block text-xs font-bold text-slate-800 mb-1">
+                End Date <span className="text-rose-500">*</span>
               </label>
               <input
                 type="date"
                 value={endDate}
+                min={startDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 required
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
+                disabled={submitting}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
               />
             </div>
           </div>
 
-          {/* Periods & Lecture Times */}
-          <div>
+          {/* 4. Time From & Time To (User Input for Timing) */}
+          <div className="p-3.5 rounded-2xl bg-blue-50/50 border border-blue-200">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-slate-700 m-0 flex items-center gap-1.5">
-                <span>Periods & Lecture Times Required</span>
-                <span className="text-purple-700 font-bold text-[10px] bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                  {selectedPeriods.length} selected
-                </span>
+              <label className="text-xs font-black text-slate-900 flex items-center gap-1.5 m-0">
+                <Clock size={15} className="text-blue-600" />
+                <span>Lecture Time Schedule (Time From & To)</span>
+                <span className="text-rose-500">*</span>
               </label>
-              <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200">
+                Ledger Timing
+              </span>
+            </div>
+
+            {/* Quick Time Presets */}
+            <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 font-bold mr-1">Presets:</span>
+              {timePresets.map((p, idx) => (
                 <button
+                  key={idx}
                   type="button"
-                  onClick={() => selectFilter('all')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                  disabled={submitting}
+                  onClick={() => {
+                    setTimeFrom(p.from);
+                    setTimeTo(p.to);
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                    timeFrom === p.from && timeTo === p.to
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
                 >
-                  All (7)
+                  {p.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => selectFilter('morning')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                >
-                  Morning (P1-P4)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectFilter('afternoon')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                >
-                  Afternoon (P5-P7)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectFilter('clear')}
-                  className="px-2 py-0.5 rounded-md text-[10px] font-bold text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  Clear
-                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Time From
+                </label>
+                <input
+                  type="text"
+                  value={timeFrom}
+                  onChange={(e) => setTimeFrom(e.target.value)}
+                  placeholder="e.g., 10:50 AM"
+                  required
+                  disabled={submitting}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none transition-colors font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Time To
+                </label>
+                <input
+                  type="text"
+                  value={timeTo}
+                  onChange={(e) => setTimeTo(e.target.value)}
+                  placeholder="e.g., 01:20 PM"
+                  required
+                  disabled={submitting}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:border-blue-600 focus:outline-none transition-colors font-mono"
+                />
               </div>
             </div>
+          </div>
 
-            {/* Periods Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {periodsList.map((p) => {
-                const isSelected = selectedPeriods.includes(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => togglePeriod(p.id)}
-                    className={`p-2 rounded-xl text-left border transition-all flex items-start gap-2 ${
-                      isSelected
-                        ? 'border-purple-600 bg-purple-50/70 shadow-xs'
-                        : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100'
-                    }`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded mt-0.5 shrink-0 flex items-center justify-center text-[10px] font-bold ${
-                        isSelected ? 'bg-purple-600 text-white' : 'border border-slate-300 bg-white text-slate-500'
-                      }`}
-                    >
-                      {isSelected ? '✓' : p.number}
-                    </div>
-                    <div>
-                      <span className="block text-xs font-bold text-slate-800">
-                        Period {p.number}
-                      </span>
-                      <span className="block text-[10px] text-slate-500 leading-tight">
-                        {p.time}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
+          {/* 5. Number of Lectures to be Considered */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-slate-800 m-0">
+                Number of Lectures Missed <span className="text-rose-500">*</span>
+              </label>
+              <span className="text-[11px] text-blue-700 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                {lecturesCount} {parseInt(lecturesCount, 10) === 1 ? 'Lecture' : 'Lectures'}
+              </span>
             </div>
 
-            {/* Selected Notice Banner */}
-            <div className="mt-2 text-[11px] font-medium text-purple-700 flex items-center gap-1.5 bg-purple-50/70 border border-purple-100 rounded-lg px-3 py-1.5">
-              <CheckCircle2 size={13} className="shrink-0 text-purple-600" />
-              <span>
-                {selectedPeriods.length} lecture period{selectedPeriods.length !== 1 ? 's' : ''} selected for attendance credit.
+            {/* Quick Preset Buttons */}
+            <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+              <span className="text-[11px] text-slate-500 font-medium mr-1">Quick Select:</span>
+              {quickLecturePresets.map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => setLecturesCount(num)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                    parseInt(lecturesCount, 10) === num
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {num} {num === 1 ? 'Lecture' : 'Lectures'}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={lecturesCount}
+                onChange={(e) => setLecturesCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                required
+                disabled={submitting}
+                className="w-32 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
+              />
+              <span className="text-xs text-slate-500 font-medium">
+                Total lecture hours or periods to be credited
               </span>
             </div>
           </div>
 
-          {/* Activity Description */}
+          {/* 6. Reason & Description */}
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Activity Description & Justification
+            <label className="block text-xs font-bold text-slate-800 mb-1">
+              Reason / Activity Details <span className="text-rose-500">*</span>
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g. Participated as Lead Developer in Smart India Hackathon..."
+              placeholder="e.g., Participated as a team member in the Inter-College Hackathon at nodal center..."
               rows={3}
               required
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none"
+              disabled={submitting}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:bg-white focus:border-blue-600 focus:outline-none transition-colors"
             />
           </div>
 
-          {/* Supporting Document */}
+          {/* 7. Supporting Document (Optional) */}
           <div>
             <DocumentUploader
-              label="Supporting Certificate / Invitation / Medical Slip (Optional)"
-              hint="Upload official OD pass, hackathon letter, or certificate (PDF, JPG, PNG up to 5 MB - optional)"
+              label="Supporting Document (Optional)"
+              hint="Upload event certificate, invitation letter, or permission slip (PDF, JPG, PNG up to 5 MB - optional)"
               selectedFile={attachment}
               onFileVerified={setAttachment}
               onFileRemove={() => setAttachment(null)}
@@ -301,13 +669,13 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
             />
           </div>
 
-          {/* Modal Footer */}
+          {/* Footer Actions */}
           <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
             >
               Cancel
             </button>
@@ -317,9 +685,14 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
               className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
             >
               {submitting ? (
-                <span>Submitting...</span>
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Submitting Request...</span>
+                </>
               ) : (
-                <span>Submit Consideration Request ({selectedPeriods.length} Periods)</span>
+                <span>
+                  Submit {applicationType === 'GROUP' ? `Group (${selectedMembers.length + 1} Members)` : 'Request'} ({lecturesCount} {parseInt(lecturesCount, 10) === 1 ? 'Lecture' : 'Lectures'})
+                </span>
               )}
             </button>
           </div>

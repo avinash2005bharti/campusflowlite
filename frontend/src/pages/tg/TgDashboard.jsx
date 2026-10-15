@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
-import { dashboardApi, mentorshipApi, considerationApi, leaveApi } from '../../api';
+import { dashboardApi, mentorshipApi, considerationApi, leaveApi, noticeApi } from '../../api';
 import {
   Users,
   CheckSquare,
@@ -27,13 +27,11 @@ export default function TgDashboard() {
   const [cohort, setCohort] = useState(null);
   const [pendingConsiderations, setPendingConsiderations] = useState([]);
   const [pendingLeaves, setPendingLeaves] = useState([]);
+  const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Active duty toggle state
+  // Active duty status indicator
   const [activeDuty, setActiveDuty] = useState(true);
-  const [selectedDept, setSelectedDept] = useState('CSE');
-  const [selectedSem, setSelectedSem] = useState('5th Semester');
-  const [selectedSec, setSelectedSec] = useState('Section B');
 
   // Ledger Modal State
   const [ledgerModalTab, setLedgerModalTab] = useState(null); // 'considerations' | 'leaves' | null
@@ -41,17 +39,27 @@ export default function TgDashboard() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [sumRes, cohortRes, conRes, leaveRes] = await Promise.allSettled([
+      const [sumRes, cohortRes, conRes, leaveRes, noticeRes] = await Promise.allSettled([
         dashboardApi.getSummary(),
         mentorshipApi.getMyCohort(),
         considerationApi.getTGQueue(),
         leaveApi.getTGQueue(),
+        noticeApi.getNotices(),
       ]);
 
       if (sumRes.status === 'fulfilled') setSummary(sumRes.value?.data || sumRes.value);
       if (cohortRes.status === 'fulfilled') setCohort(cohortRes.value?.data || cohortRes.value);
-      if (conRes.status === 'fulfilled') setPendingConsiderations(conRes.value?.data || []);
-      if (leaveRes.status === 'fulfilled') setPendingLeaves(leaveRes.value?.data || []);
+      if (conRes.status === 'fulfilled') {
+        const val = conRes.value?.data || conRes.value?.requests || conRes.value || [];
+        setPendingConsiderations(Array.isArray(val) ? val : []);
+      }
+      if (leaveRes.status === 'fulfilled') {
+        const val = leaveRes.value?.data || leaveRes.value?.leaves || leaveRes.value || [];
+        setPendingLeaves(Array.isArray(val) ? val : []);
+      }
+      if (noticeRes.status === 'fulfilled') {
+        setNotices(noticeRes.value?.data || []);
+      }
     } finally {
       setLoading(false);
     }
@@ -68,28 +76,25 @@ export default function TgDashboard() {
   }, []);
 
   const totalPending = pendingConsiderations.length + pendingLeaves.length;
-  const menteeCount = cohort?.students?.length || 0;
+  const studentCount = cohort?.students?.length || summary?.totalStudents || summary?.totalMentees || 0;
+  const deptCode = cohort?.department?.code || 'CSE';
+  const semNum = cohort?.section?.semester || cohort?.semester || '5';
+  const rawSec = cohort?.section?.name || cohort?.section?.code || 'B';
+  const cleanSec = rawSec.replace(/^Section\s*/i, '').replace(/^CSE-/i, '').trim() || 'B';
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-10">
-      {/* Top Bar Switcher Link */}
+    <div className="flex flex-col gap-6 w-full pb-10">
+      {/* Top Header Tag */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-            TUTOR GUARDIAN PORTAL
+          <span className="text-xs font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1 rounded-full uppercase tracking-wider">
+            Tutor Guardian Workspace
           </span>
         </div>
-        <Link
-          to="/teacher"
-          className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 group no-underline"
-        >
-          <span>Teacher Dashboard</span>
-          <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-        </Link>
       </div>
 
-      {/* Welcome & Section Control Card */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      {/* Welcome & Assigned Configuration Card */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
             <Users size={24} />
@@ -99,74 +104,29 @@ export default function TgDashboard() {
               Welcome back, {currentUser?.name || currentUser?.designation || 'Tutor Guardian'}!
             </h1>
             <p className="text-xs text-slate-500 mt-1 mb-3 font-medium">
-              Here's the latest overview of your assigned section.
+              Here is the real-time overview for your assigned student section.
             </p>
 
-            {/* Controls Row: Active Duty Toggle + Dropdowns */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setActiveDuty(!activeDuty)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-2 transition-all cursor-pointer ${
-                  activeDuty
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-slate-50 text-slate-600 border-slate-200'
-                }`}
-              >
-                <span>Active Duty</span>
-                <span
-                  className={`w-6 h-3.5 rounded-full p-0.5 transition-colors flex items-center ${
-                    activeDuty ? 'bg-emerald-600 justify-end' : 'bg-slate-300 justify-start'
-                  }`}
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-white block" />
-                </span>
-              </button>
+            {/* Read-Only HOD-Enforced Configuration Chips (No Dropdowns) */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-300 text-xs font-bold">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Active TG Duty</span>
+              </span>
 
-              <select
-                value={selectedDept}
-                onChange={(e) => setSelectedDept(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none"
-              >
-                <option value="CSE">CSE</option>
-              </select>
+              <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold">
+                Department: {cohort?.department?.name || deptCode}
+              </span>
 
-              <select
-                value={selectedSem}
-                onChange={(e) => setSelectedSem(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none"
-              >
-                <option value="5th Semester">5th Semester</option>
-                <option value="4th Semester">4th Semester</option>
-                <option value="6th Semester">6th Semester</option>
-              </select>
-
-              <select
-                value={selectedSec}
-                onChange={(e) => setSelectedSec(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 focus:outline-none"
-              >
-                <option value="Section B">Section B</option>
-                <option value="Section A">Section A</option>
-                <option value="Section C">Section C</option>
-              </select>
+              <span className="inline-flex items-center px-3 py-1.5 rounded-xl bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold">
+                Assigned: Semester {semNum} • Section {cleanSec}
+              </span>
             </div>
           </div>
         </div>
-
-        {/* Top Right Quick Stat Card */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center min-w-[140px] shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 mx-auto mb-1 flex items-center justify-center">
-            <Users size={16} />
-          </div>
-          <span className="block text-2xl font-black text-slate-900">{menteeCount}</span>
-          <span className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-            Mentees in your section
-          </span>
-        </div>
       </div>
 
-      {/* 4 Primary Action / Information Cards Row matching wireframe */}
+      {/* 4 Primary Action / Information Cards Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: PENDING REQUESTS */}
         <div
@@ -194,7 +154,7 @@ export default function TgDashboard() {
           </div>
         </div>
 
-        {/* Card 2: TOTAL MENTEES */}
+        {/* Card 2: TOTAL STUDENTS */}
         <div
           onClick={() => navigate('/tg/students')}
           className="p-5 rounded-3xl bg-white border border-slate-200 shadow-xs hover:border-blue-400 hover:shadow-md transition-all cursor-pointer flex flex-col justify-between group"
@@ -204,18 +164,18 @@ export default function TgDashboard() {
               <Users size={18} />
             </div>
             <span className="block text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-              TOTAL MENTEES
+              TOTAL STUDENTS
             </span>
             <span className="block text-3xl font-black text-slate-900 mt-1">
-              {menteeCount}
+              {studentCount}
             </span>
             <span className="block text-xs text-slate-500 font-medium mt-0.5">
-              CSE • 5th Semester • Section B
+              {deptCode} • Semester {semNum} • Section {cleanSec}
             </span>
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs font-bold text-blue-600 group-hover:text-blue-700">
-            <span>View Roster</span>
+            <span>View Student Roster</span>
             <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
           </div>
         </div>
@@ -287,15 +247,68 @@ export default function TgDashboard() {
           </div>
         </div>
 
-        <div className="py-8 text-center">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 mx-auto mb-2 flex items-center justify-center">
-            <Megaphone size={18} />
+        {notices.length > 0 ? (
+          <div className="space-y-2 mt-2">
+            {notices.map((notice) => {
+              const isUrgent = notice.priority === 'URGENT';
+              return (
+                <div
+                  key={notice._id}
+                  className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/80 transition-all gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                        isUrgent
+                          ? 'bg-rose-50 border-rose-200 text-rose-600'
+                          : 'bg-blue-50 border-blue-200 text-blue-600'
+                      }`}
+                    >
+                      <Megaphone size={16} />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                          {notice.title}
+                        </span>
+                        {isUrgent && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-rose-100 text-rose-700 uppercase">
+                            Urgent
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                        {notice.content}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-200/70 text-slate-700 text-[10px] font-bold">
+                      {notice.category}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold hidden sm:inline-block">
+                      {new Date(notice.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-xs font-bold text-slate-700 m-0">No notices posted</p>
-          <p className="text-[11px] text-slate-400 m-0 mt-0.5">
-            No active circulars for CSE • 5th Semester • Section B.
-          </p>
-        </div>
+        ) : (
+          <div className="py-8 text-center">
+            <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 mx-auto mb-2 flex items-center justify-center">
+              <Megaphone size={18} />
+            </div>
+            <p className="text-xs font-bold text-slate-700 m-0">No notices posted</p>
+            <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+              No active circulars for {deptCode} • Semester {semNum} • Section {cleanSec}.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Official Clearances Ledger Modal */}
@@ -303,6 +316,9 @@ export default function TgDashboard() {
         <OfficialClearancesLedgerModal
           initialTab={ledgerModalTab}
           onClose={() => setLedgerModalTab(null)}
+          isTgView={true}
+          assignedSemester={semNum}
+          assignedSection={cleanSec}
         />
       )}
     </div>

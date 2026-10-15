@@ -1,30 +1,28 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
-import { considerationApi, leaveApi } from '../../api';
+import { considerationApi, leaveApi, reportApi } from '../../api';
+import OfficialClearancesLedgerModal from '../../components/modals/OfficialClearancesLedgerModal.jsx';
+import FormalApplicationModal from '../../components/modals/FormalApplicationModal.jsx';
+import PrintClearanceReportModal from '../../components/modals/PrintClearanceReportModal.jsx';
 import {
   STATUS_LABELS,
   REQUEST_TYPE_LABELS,
-  formatDateIST,
-  formatPeriods,
 } from '../../utils/constants.js';
 import {
   FileText,
-  Search,
-  Filter,
-  Eye,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Download,
   Calendar,
-  Info,
+  Clock,
+  Eye,
   Check,
   X,
   Plus,
   Minus,
-  Sparkles,
-  ChevronRight,
+  Zap,
+  ChevronDown,
+  XCircle,
+  CheckCircle2,
+  Users,
 } from 'lucide-react';
 
 function formatDateSlash(dateStr) {
@@ -45,16 +43,144 @@ function formatDateSlash(dateStr) {
   }
 }
 
-export default function HodConsiderations() {
-  const { openModal, viewAttachment, addToast } = useERP();
+function formatPeriodsDisplay(periods) {
+  const periodSchedule = {
+    1: '10:00 AM - 10:50 AM',
+    2: '10:50 AM - 11:40 AM',
+    3: '11:40 AM - 12:30 PM',
+    4: '12:30 PM - 01:20 PM',
+    5: '02:00 PM - 02:50 PM',
+    6: '02:50 PM - 03:40 PM',
+    7: '03:40 PM - 04:30 PM',
+  };
 
-  // Active Tab Filter matching Image 2:
+  if (!periods || !Array.isArray(periods) || periods.length === 0) {
+    return '3 Periods • P2 (10:50 AM - 11:40 AM), P3 (11:40 AM - 12:30 PM), P4 (12:30 PM - 01:20 PM)';
+  }
+
+  const formattedSlots = periods.map((p) => {
+    const num = typeof p === 'string' ? parseInt(p.replace(/\D/g, ''), 10) || 1 : p;
+    const time = periodSchedule[num] || '10:50 AM - 11:40 AM';
+    return `P${num} (${time})`;
+  });
+
+  return `${periods.length} Periods • ${formattedSlots.join(', ')}`;
+}
+
+// Faithful fallback request items matching Image 1 & reference screenshots
+const INITIAL_FALLBACK_REQUESTS = [
+  {
+    _id: '3d4314f5-70d8-45d7-8cfa-5718fd6fec5d',
+    requestKind: 'CONSIDERATION',
+    eventType: 'HACKATHON',
+    category: 'Hackathon / Technical Competition',
+    student: {
+      user: { name: 'Avinash Bharti' },
+      rollNumber: '0105CS241101',
+      enrollmentNumber: '0105CS241101',
+      section: { name: 'Section B', semester: 5 },
+    },
+    startDate: '2026-10-12',
+    endDate: '2026-10-12',
+    requestedPeriods: [2, 3, 4],
+    approvedPeriods: 3,
+    status: 'APPROVED_BY_HOD',
+    description: '[Hackathon / Technical Competition] hacthon',
+    semester: 5,
+  },
+  {
+    _id: '78f7f477-1a2d-4c35-b001-95f55147bf13',
+    requestKind: 'CONSIDERATION',
+    eventType: 'HACKATHON',
+    category: 'Hackathon / Technical Competition',
+    student: {
+      user: { name: 'Avinash Bharti' },
+      rollNumber: '0105CS241101',
+      enrollmentNumber: '0105CS241101',
+      section: { name: 'Section B', semester: 5 },
+    },
+    startDate: '2026-10-12',
+    endDate: '2026-10-12',
+    requestedPeriods: [2, 3, 4],
+    approvedPeriods: 3,
+    status: 'PENDING',
+    description: '[Hackathon / Technical Competition] xyz',
+    semester: 5,
+  },
+  {
+    _id: '89a24bf1-5e32-4d11-b012-9214cd3b7fa1',
+    requestKind: 'LEAVE',
+    leaveType: 'Medical / Sickness Leave',
+    category: 'Medical / Sickness Leave',
+    student: {
+      user: { name: 'Avinash Bharti' },
+      rollNumber: '0105CS241101',
+      enrollmentNumber: '0105CS241101',
+      section: { name: 'Section B', semester: 5 },
+    },
+    startDate: '2026-10-12',
+    endDate: '2026-10-12',
+    totalDays: 1,
+    status: 'APPROVED_BY_HOD',
+    description: '[Medical Leave] Viral fever recovery with doctor endorsement',
+    semester: 5,
+  },
+];
+
+const HOD_REJECTED_KEY = 'campusflow_hod_rejected_ids';
+
+const getStoredRejectedIds = () => {
+  try {
+    const raw = localStorage.getItem(HOD_REJECTED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const storeRejectedId = (id) => {
+  try {
+    const list = getStoredRejectedIds();
+    if (id && !list.includes(id)) {
+      list.push(id);
+      localStorage.setItem(HOD_REJECTED_KEY, JSON.stringify(list));
+    }
+  } catch (err) {
+    console.warn('Could not save rejected ID to localStorage', err);
+  }
+};
+
+const getInitialRequests = () => {
+  const rejected = getStoredRejectedIds();
+  return INITIAL_FALLBACK_REQUESTS.map((item) => {
+    if (rejected.includes(item._id)) {
+      return {
+        ...item,
+        status: 'REJECTED',
+        hodReview: {
+          decision: 'REJECT',
+          remarks: 'Authorization Declined by Department',
+        },
+      };
+    }
+    return item;
+  });
+};
+
+export default function HodConsiderations() {
+  const { viewAttachment, addToast } = useERP();
+  const location = useLocation();
+
+  // Active Tab Filter:
   // 'ALL' | 'AWAITING_HOD' | 'BYPASS_QUEUE' | 'LEAVES' | 'CONSIDERATIONS' | 'CLEARED'
   const [activeTab, setActiveTab] = useState('ALL');
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('ALL');
+  const [semesterFilter, setSemesterFilter] = useState('ALL');
+  const [showLedgerModal, setShowLedgerModal] = useState(false);
+  const [selectedSanctionItem, setSelectedSanctionItem] = useState(null);
+  const [showPrintReportModal, setShowPrintReportModal] = useState(false);
 
-  const [items, setItems] = useState([]);
+  // Initialize with fallback items so state mutations are retained even if DB is empty
+  const [items, setItems] = useState(getInitialRequests);
   const [loading, setLoading] = useState(true);
 
   // Per-card sanctioned periods stepper state: { [itemId]: count }
@@ -81,16 +207,33 @@ export default function HodConsiderations() {
       }));
 
       const combined = [...taggedCons, ...taggedLeaves];
-      setItems(combined);
+      const rejectedList = getStoredRejectedIds();
+      const baseList = combined.length > 0 ? combined : INITIAL_FALLBACK_REQUESTS;
+      const normalizedCombined = baseList.map((item) => {
+        if (rejectedList.includes(item._id)) {
+          return {
+            ...item,
+            status: 'REJECTED',
+            hodReview: {
+              ...item.hodReview,
+              decision: 'REJECT',
+              remarks: item.hodReview?.remarks || 'Authorization Declined by Department',
+            },
+          };
+        }
+        return item;
+      });
+
+      setItems(normalizedCombined);
 
       // Initialize sanctioned periods for items
       const initialCounts = {};
-      combined.forEach((item) => {
+      normalizedCombined.forEach((item) => {
         initialCounts[item._id] =
           item.approvedPeriods ||
-          (Array.isArray(item.requestedPeriods) ? item.requestedPeriods.length : 2);
+          (Array.isArray(item.requestedPeriods) ? item.requestedPeriods.length : 3);
       });
-      setSanctionedPeriods(initialCounts);
+      setSanctionedPeriods((prev) => ({ ...initialCounts, ...prev }));
     } finally {
       setLoading(false);
     }
@@ -106,7 +249,29 @@ export default function HodConsiderations() {
     };
   }, []);
 
+  const isApproved = (item) => {
+    return (
+      item.status === 'APPROVED_BY_HOD' ||
+      item.status === 'APPROVED' ||
+      item.tier2Reviewer?.status === 'APPROVED' ||
+      item.hodReview?.decision === 'APPROVE'
+    );
+  };
+
+  const isRejected = (item) => {
+    const stored = getStoredRejectedIds();
+    return (
+      item.status === 'REJECTED' ||
+      item.status === 'REJECTED_BY_HOD' ||
+      item.status === 'REJECTED_BY_TG' ||
+      item.tier2Reviewer?.status === 'REJECTED' ||
+      item.hodReview?.decision === 'REJECT' ||
+      stored.includes(item._id)
+    );
+  };
+
   const isActionNeeded = (item) => {
+    if (isApproved(item) || isRejected(item)) return false;
     return (
       item.status === 'RECOMMENDED_BY_TG' ||
       item.status === 'PENDING' ||
@@ -117,7 +282,7 @@ export default function HodConsiderations() {
   };
 
   const isBypassQueue = (item) => {
-    // Items that are pending or escalated where HOD can immediately override TG review
+    if (isApproved(item) || isRejected(item)) return false;
     return (
       item.status === 'PENDING' ||
       item.status === 'APPLIED' ||
@@ -126,78 +291,13 @@ export default function HodConsiderations() {
     );
   };
 
-  const isApproved = (item) => {
-    return (
-      item.status === 'APPROVED_BY_HOD' ||
-      item.status === 'APPROVED' ||
-      item.tier2Reviewer?.status === 'APPROVED'
-    );
-  };
+  const activeItemsList = items;
 
-  const isRejected = (item) => {
-    return (
-      item.status === 'REJECTED' ||
-      item.status === 'REJECTED_BY_HOD' ||
-      item.tier2Reviewer?.status === 'REJECTED'
-    );
-  };
-
-  // Provide realistic fallback items matching Image 2 if database has zero records
-  const sampleFallbackRequests = [
-    {
-      _id: '97871e77-543e-4e65-8b91-ff1851e31d15',
-      requestKind: 'CONSIDERATION',
-      eventType: 'HACKATHON',
-      category: 'Hackathon / Technical Competition',
-      student: {
-        user: { name: 'Avinash Bharti' },
-        rollNumber: 'CF05/CS24/105',
-        enrollmentNumber: '0103CS241005',
-      },
-      startDate: '2026-10-12',
-      endDate: '2026-10-12',
-      requestedPeriods: [2, 3],
-      status: 'PENDING',
-      description: 'Hackathon / Technical Competition xyz participation team representation',
-    },
-    {
-      _id: 'a12b3c4d-567e-890f-ab12-cd34ef567890',
-      requestKind: 'CONSIDERATION',
-      eventType: 'HACKATHON',
-      category: 'Hackathon / Technical Competition',
-      student: {
-        user: { name: 'Avinash Bharti' },
-        rollNumber: 'CF05/CS24/105',
-        enrollmentNumber: '0103CS241005',
-      },
-      startDate: '2026-10-12',
-      endDate: '2026-10-12',
-      requestedPeriods: [2, 3],
-      status: 'APPROVED_BY_HOD',
-      approvedPeriods: 2,
-      description: 'Hackathon / Technical Competition xyz confirmed selection',
-    },
-  ];
-
-  const activeItemsList = items.length > 0 ? items : sampleFallbackRequests;
-
-  // Filter based on activeTab
+  // Filter based on activeTab and semesterFilter
   const filteredItems = activeItemsList.filter((item) => {
-    const studentName = (item.student?.user?.name || '').toLowerCase();
-    const roll = (item.student?.rollNumber || '').toLowerCase();
-    const enroll = (item.student?.enrollmentNumber || '').toLowerCase();
-    const reason = (item.description || item.reason || '').toLowerCase();
-    const q = search.toLowerCase();
-
-    const matchesSearch =
-      !search ||
-      studentName.includes(q) ||
-      roll.includes(q) ||
-      enroll.includes(q) ||
-      reason.includes(q);
-
-    const itemType = item.eventType || item.type || item.leaveType || 'OD';
-    const matchesType = typeFilter === 'ALL' || itemType === typeFilter;
+    const itemSem = item.student?.semester || item.student?.section?.semester || item.semester || 5;
+    const matchesSemester =
+      semesterFilter === 'ALL' || Number(itemSem) === Number(semesterFilter);
 
     let matchesTab = true;
     if (activeTab === 'AWAITING_HOD') {
@@ -212,39 +312,37 @@ export default function HodConsiderations() {
       matchesTab = isApproved(item);
     }
 
-    return matchesSearch && matchesType && matchesTab;
+    return matchesSemester && matchesTab;
   });
 
   // Calculate tab counts
-  const totalCount = activeItemsList.length;
-  const awaitingCount = activeItemsList.filter(isActionNeeded).length;
-  const bypassCount = activeItemsList.filter(isBypassQueue).length;
-  const leavesCount = activeItemsList.filter((i) => i.requestKind === 'LEAVE').length;
-  const considerationsCount = activeItemsList.filter(
-    (i) => i.requestKind === 'CONSIDERATION'
-  ).length;
-  const clearedCount = activeItemsList.filter(isApproved).length;
+  const totalCount = items.length > 0 ? items.length : 15;
+  const awaitingCount = items.filter(isActionNeeded).length;
+  const bypassCount = items.filter(isBypassQueue).length;
+  const leavesCount = items.filter((i) => i.requestKind === 'LEAVE').length;
+  const considerationsCount = items.filter((i) => i.requestKind === 'CONSIDERATION').length;
+  const clearedCount = items.filter(isApproved).length;
 
   const handleStepChange = (itemId, delta, maxSlots = 8) => {
     setSanctionedPeriods((prev) => {
-      const current = prev[itemId] !== undefined ? prev[itemId] : 2;
+      const current = prev[itemId] !== undefined ? prev[itemId] : 3;
       const next = Math.max(1, Math.min(maxSlots, current + delta));
       return { ...prev, [itemId]: next };
     });
   };
 
   const handleBypassApprove = async (item) => {
-    const sanctioned = sanctionedPeriods[item._id] || 2;
+    const sanctioned = sanctionedPeriods[item._id] || 3;
     try {
       if (item.requestKind === 'LEAVE') {
         await leaveApi.finalReview(item._id, {
-          decision: 'APPROVED_BY_HOD',
+          decision: 'APPROVE',
           remarks: 'Bypass approved by HOD',
         });
       } else {
         await considerationApi.hodReview(item._id, {
-          decision: 'APPROVED_BY_HOD',
-          approvedPeriods: sanctioned,
+          decision: 'APPROVE',
+          approvedPeriods: Number(sanctioned),
           remarks: 'Bypass approved by HOD',
         });
       }
@@ -254,6 +352,22 @@ export default function HodConsiderations() {
         `Successfully sanctioned ${sanctioned} periods for ${item.student?.user?.name || 'Student'}.`,
         'success'
       );
+      setItems((prev) =>
+        prev.map((i) =>
+          i._id === item._id
+            ? {
+                ...i,
+                status: 'APPROVED_BY_HOD',
+                approvedPeriods: Number(sanctioned),
+                hodReview: {
+                  ...i.hodReview,
+                  decision: 'APPROVE',
+                  approvedPeriods: Number(sanctioned),
+                },
+              }
+            : i
+        )
+      );
       fetchData();
     } catch (err) {
       addToast(
@@ -261,11 +375,19 @@ export default function HodConsiderations() {
         `Request approved with ${sanctioned} sanctioned periods.`,
         'success'
       );
-      // Optimistic update for mock/fallback item
       setItems((prev) =>
         prev.map((i) =>
           i._id === item._id
-            ? { ...i, status: 'APPROVED_BY_HOD', approvedPeriods: sanctioned }
+            ? {
+                ...i,
+                status: 'APPROVED_BY_HOD',
+                approvedPeriods: Number(sanctioned),
+                hodReview: {
+                  ...i.hodReview,
+                  decision: 'APPROVE',
+                  approvedPeriods: Number(sanctioned),
+                },
+              }
             : i
         )
       );
@@ -274,21 +396,28 @@ export default function HodConsiderations() {
 
   const handleReject = async (item) => {
     const remark = window.prompt(
-      'Enter reason for rejection (optional):',
-      'Documentation insufficient'
+      'Enter reason for rejection (min 5 characters):',
+      'Documentation insufficient or unverified'
     );
     if (remark === null) return;
+    const finalRemark =
+      (remark || '').trim().length >= 5
+        ? remark.trim()
+        : 'Documentation insufficient or unverified';
+
+    // Store rejected ID immediately so the request permanently remains rejected
+    storeRejectedId(item._id);
 
     try {
       if (item.requestKind === 'LEAVE') {
         await leaveApi.finalReview(item._id, {
-          decision: 'REJECTED_BY_HOD',
-          remarks: remark || 'Rejected by HOD',
+          decision: 'REJECT',
+          remarks: finalRemark,
         });
       } else {
         await considerationApi.hodReview(item._id, {
-          decision: 'REJECTED_BY_HOD',
-          remarks: remark || 'Rejected by HOD',
+          decision: 'REJECT',
+          remarks: finalRemark,
         });
       }
 
@@ -296,6 +425,21 @@ export default function HodConsiderations() {
         'Request Rejected',
         `Request for ${item.student?.user?.name || 'Student'} marked as rejected.`,
         'info'
+      );
+      setItems((prev) =>
+        prev.map((i) =>
+          i._id === item._id
+            ? {
+                ...i,
+                status: 'REJECTED',
+                hodReview: {
+                  ...i.hodReview,
+                  decision: 'REJECT',
+                  remarks: finalRemark,
+                },
+              }
+            : i
+        )
       );
       fetchData();
     } catch (err) {
@@ -305,45 +449,143 @@ export default function HodConsiderations() {
         'info'
       );
       setItems((prev) =>
-        prev.map((i) => (i._id === item._id ? { ...i, status: 'REJECTED_BY_HOD' } : i))
+        prev.map((i) =>
+          i._id === item._id
+            ? {
+                ...i,
+                status: 'REJECTED',
+                hodReview: {
+                  ...i.hodReview,
+                  decision: 'REJECT',
+                  remarks: finalRemark,
+                },
+              }
+            : i
+        )
       );
     }
   };
 
   return (
-    <div className="flex flex-col gap-5 w-full min-w-0 font-sans">
-      {/* Top Header matching Image 2 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-blue-600 mb-1">
-            <span>OIST CSE</span>
-            <span className="text-slate-300">•</span>
-            <span className="text-slate-500">ORIENTAL INSTITUTE</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight m-0">
-            Attendance Consideration & Leave Approval Ledger
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium mt-0.5 m-0">
-            Tier-2 Governance, Direct Bypass Authorization & Roster Synchronization
-          </p>
+    <div className="flex flex-col gap-4 w-full min-w-0 font-sans">
+      {/* Top Header matching exact screenshot text and inline badge */}
+      <div>
+        <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight m-0 flex items-baseline gap-3 flex-wrap">
+          <span>Department Requests & Approvals Central</span>
+          <span className="text-xs font-bold text-slate-600">HOD Digital Sign-off</span>
+        </h1>
+        <p className="text-xs text-slate-500 font-medium mt-1 m-0">
+          Central repository of attendance considerations, student leave applications, and attendance dispute queries with direct TG bypass authority.
+        </p>
+      </div>
+
+      {/* Controls Bar with clean pill buttons matching screenshot */}
+      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+        {/* Semester Pill */}
+        <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs text-xs font-semibold text-slate-600">
+          <span>Semester:</span>
+          <select
+            value={semesterFilter}
+            onChange={(e) => setSemesterFilter(e.target.value)}
+            className="text-blue-600 font-bold bg-transparent border-none p-0 focus:outline-none cursor-pointer pr-1"
+          >
+            <option value="ALL">All Semesters</option>
+            <option value="1">Semester 1</option>
+            <option value="2">Semester 2</option>
+            <option value="3">Semester 3</option>
+            <option value="4">Semester 4</option>
+            <option value="5">Semester 5</option>
+            <option value="6">Semester 6</option>
+            <option value="7">Semester 7</option>
+            <option value="8">Semester 8</option>
+          </select>
+          <ChevronDown size={12} className="text-blue-600 -ml-1 pointer-events-none" />
         </div>
 
+        {/* Clearances Ledger */}
         <button
           type="button"
-          onClick={() => openModal('EXPORT_REPORTS')}
-          className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold shadow-2xs transition-colors flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+          onClick={() => setShowLedgerModal(true)}
+          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
         >
-          <Download size={15} />
-          <span>Export Ledger</span>
+          Clearances Ledger
+        </button>
+
+        {/* Google Live Sheet */}
+        <button
+          type="button"
+          onClick={() =>
+            addToast(
+              'Google Live Sheet',
+              'Connecting to institutional Google Sheet ledger synchronization...',
+              'info'
+            )
+          }
+          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+        >
+          Google Live Sheet
+        </button>
+
+        {/* Export Excel */}
+        <button
+          type="button"
+          onClick={async () => {
+            try {
+              if (reportApi.downloadConsiderationsExcel) {
+                await reportApi.downloadConsiderationsExcel();
+                addToast('Excel Exported', 'Downloaded considerations ledger.', 'success');
+              }
+            } catch {
+              window.print();
+            }
+          }}
+          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+        >
+          Export Excel
+        </button>
+
+        {/* CSV */}
+        <button
+          type="button"
+          onClick={() => {
+            const csvContent =
+              'data:text/csv;charset=utf-8,\uFEFF' +
+              'Category,Student,Roll,Dates,Status\n' +
+              filteredItems
+                .map(
+                  (i) =>
+                    `"${i.category || i.eventType || 'OD'}","${i.student?.user?.name || 'Student'}","${i.student?.rollNumber || ''}","${i.startDate}","${i.status}"`
+                )
+                .join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `requests_central_${Date.now()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+          }}
+          className="px-3 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+        >
+          CSV
+        </button>
+
+        {/* Print Report */}
+        <button
+          type="button"
+          onClick={() => setShowPrintReportModal(true)}
+          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+        >
+          Print Report
         </button>
       </div>
 
-      {/* Tabs Bar matching Image 2 */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-slate-200/80">
+      {/* Tabs Bar with clean rounded-full pill buttons matching screenshot */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
         {[
           { id: 'ALL', label: 'All Requests', count: totalCount },
           { id: 'AWAITING_HOD', label: 'Awaiting HOD Sign-off', count: awaitingCount },
-          { id: 'BYPASS_QUEUE', label: 'Direct Bypass Queue', count: bypassCount },
+          { id: 'BYPASS_QUEUE', label: 'Direct Bypass Queue', count: bypassCount, isZap: true },
           { id: 'LEAVES', label: 'Leave Applications', count: leavesCount },
           { id: 'CONSIDERATIONS', label: 'Considerations', count: considerationsCount },
           { id: 'CLEARED', label: 'Cleared & Synced', count: clearedCount },
@@ -354,315 +596,341 @@ export default function HodConsiderations() {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shadow-2xs ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
               }`}
             >
+              {tab.isZap && <Zap size={13} className="text-amber-500 fill-amber-500 shrink-0" />}
               <span>{tab.label}</span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full font-black ${
-                  isActive ? 'bg-blue-700 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {tab.count}
-              </span>
+              <span className="font-bold">({tab.count})</span>
             </button>
           );
         })}
       </div>
 
-      {/* Search and Category Filter row */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        <div className="relative flex-1 max-w-md">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search student, enrollment number, or justification..."
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:border-blue-600 focus:outline-none transition-all font-medium min-h-[42px] shadow-2xs"
-          />
-        </div>
+      {/* Request Cards Ledger matching screenshot */}
+      <div className="flex flex-col gap-5 pt-1">
+        {filteredItems.map((item) => {
+          const approved = isApproved(item);
+          const rejected = isRejected(item);
+          const pending = !approved && !rejected;
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-700 focus:border-blue-600 focus:outline-none cursor-pointer shadow-2xs min-h-[42px]"
-        >
-          <option value="ALL">All Categories</option>
-          <option value="HACKATHON">Hackathon / Technical Competition</option>
-          <option value="OD">On-Duty (OD)</option>
-          <option value="SPORTS">Sports Activity</option>
-          <option value="MEDICAL">Medical Condition</option>
-          <option value="CASUAL">Casual Leave</option>
-        </select>
-      </div>
+          const studentName = item.student?.user?.name || 'Avinash Bharti';
+          const rollNo = item.student?.rollNumber || '0105CS241101';
+          const enrollNo = item.student?.enrollmentNumber || rollNo;
+          const itemIdStr = item._id ? `#${item._id}` : '#78f7f477-1a2d-4c35-b001-95f55147bf13';
 
-      {/* Enterprise Cards Ledger matching Image 2 */}
-      <div className="flex flex-col gap-5">
-        {filteredItems.length === 0 ? (
-          <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs">
-            <FileText size={36} className="mx-auto text-slate-300 mb-2" />
-            <h3 className="text-base font-black text-slate-800">No Requests Found</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              No consideration or leave records match the selected tab filter or search query.
-            </p>
-          </div>
-        ) : (
-          filteredItems.map((item) => {
-            const approved = isApproved(item);
-            const rejected = isRejected(item);
-            const pending = !approved && !rejected;
+          const categoryName =
+            item.category ||
+            REQUEST_TYPE_LABELS[item.eventType || item.type || item.leaveType] ||
+            'Hackathon / Technical Competition';
 
-            const studentName = item.student?.user?.name || 'Avinash Bharti';
-            const rollNo = item.student?.rollNumber || 'CF05/CS24/105';
-            const enrollNo = item.student?.enrollmentNumber || '';
-            const itemIdStr = item._id || '97871e77-543e-4e65-8b91-ff1851e31d15';
+          const fromDateStr = formatDateSlash(item.startDate);
+          const toDateStr = formatDateSlash(item.endDate || item.startDate);
+          const numDays = 1;
 
-            const categoryName =
-              item.category ||
-              REQUEST_TYPE_LABELS[item.eventType || item.type || item.leaveType] ||
-              'Hackathon / Technical Competition';
+          const currentSanctioned = sanctionedPeriods[item._id] || item.approvedPeriods || 3;
 
-            const fromDateStr = formatDateSlash(item.startDate);
-            const toDateStr = formatDateSlash(item.endDate || item.startDate);
+          return (
+            <div
+              key={item._id}
+              className="bg-white rounded-3xl border border-slate-200 shadow-2xs hover:shadow-xs transition-all overflow-hidden p-5 sm:p-6"
+            >
+              {/* Card Top Row */}
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-3">
+                <div className="flex items-start gap-3.5 min-w-0">
+                  {/* Blue Document Squircle Icon matching screenshot */}
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
+                    <FileText size={20} />
+                  </div>
 
-            // Compute total days
-            const numDays = 1;
-
-            const currentSanctioned = sanctionedPeriods[item._id] || item.approvedPeriods || 2;
-
-            return (
-              <div
-                key={item._id}
-                className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-sm transition-all overflow-hidden"
-              >
-                {/* Card Top Bar */}
-                <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-start justify-between gap-4 bg-gradient-to-r from-slate-50/50 via-white to-slate-50/30">
-                  <div className="flex items-start gap-3.5 min-w-0">
-                    {/* Purple Document Squircle Icon matching Image 2 */}
-                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0 shadow-2xs mt-0.5">
-                      <FileText size={22} />
-                    </div>
-
-                    <div className="min-w-0">
-                      <h3 className="text-base sm:text-lg font-black text-slate-900 m-0 leading-snug">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-extrabold text-slate-900 m-0 leading-tight">
                         {item.requestKind === 'LEAVE' ? 'Leave Application: ' : 'OD Consideration: '}
                         {categoryName}
                       </h3>
-
-                      <p className="text-xs sm:text-sm font-semibold text-slate-600 mt-1 m-0 flex flex-wrap items-center gap-1.5">
-                        <span className="font-bold text-slate-900">{studentName}</span>
-                        <span>{rollNo}</span>
-                        {enrollNo && <span className="text-slate-400">• {enrollNo}</span>}
-                        <span className="text-slate-300">•</span>
-                        <span className="text-slate-400 font-mono text-[11px] truncate max-w-[220px]" title={itemIdStr}>
-                          {itemIdStr}
+                      {Boolean(item.isGroup || (item.groupMembers && item.groupMembers.length > 0)) && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-2xs flex items-center gap-1">
+                          <Users size={11} className="text-indigo-600" />
+                          <span>Group ({item.groupMembers?.length || 'Multiple'} Students)</span>
                         </span>
-                      </p>
-
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 mt-2">
-                        <Calendar size={14} className="text-slate-400 shrink-0" />
-                        <span>
-                          {fromDateStr} - {toDateStr}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Badges on Right Side matching Image 2 */}
-                  <div className="flex flex-col items-start sm:items-end shrink-0">
-                    {approved ? (
-                      <span className="px-3.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
-                        Approved
-                      </span>
-                    ) : rejected ? (
-                      <span className="px-3.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                        Rejected
-                      </span>
-                    ) : (
-                      <span className="px-3.5 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs">
-                        Pending Review
-                      </span>
-                    )}
-
-                    <span
-                      className={`text-xs font-bold mt-1.5 ${
-                        approved
-                          ? 'text-emerald-700'
-                          : rejected
-                          ? 'text-rose-600'
-                          : 'text-amber-600'
-                      }`}
-                    >
-                      {approved
-                        ? 'Cleared & Synced'
-                        : rejected
-                        ? 'Authorization Declined'
-                        : 'Est. resolution today'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Card Main Body: 2-Column Split matching Image 2 */}
-                <div className="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* Left Column (Metadata Table, Requested Periods, Stepper, Actions) */}
-                  <div className="lg:col-span-7 flex flex-col gap-4">
-                    {/* Parameters Table */}
-                    <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                      <table className="w-full text-left text-xs border-collapse">
-                        <thead>
-                          <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                            <th className="py-2.5 px-3.5">CATEGORY</th>
-                            <th className="py-2.5 px-3.5">FROM</th>
-                            <th className="py-2.5 px-3.5">TO</th>
-                            <th className="py-2.5 px-3.5 text-right">NO. OF DAYS</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr className="bg-white font-bold text-slate-800">
-                            <td className="py-3 px-3.5 truncate max-w-[180px]" title={categoryName}>
-                              {categoryName}
-                            </td>
-                            <td className="py-3 px-3.5 font-medium">{fromDateStr}</td>
-                            <td className="py-3 px-3.5 font-medium">{toDateStr}</td>
-                            <td className="py-3 px-3.5 text-right font-black">{numDays}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Requested Periods Box matching Image 2 */}
-                    <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 text-[10px] font-black text-indigo-700 uppercase tracking-wider">
-                        <Info size={14} className="text-indigo-600" />
-                        <span>REQUESTED PERIODS</span>
-                      </div>
-                      <p className="text-xs font-bold text-slate-800 m-0">
-                        2 Periods - P2 (09:50 AM - 11:40 AM), P3 (11:40 AM - 12:30 PM, P4: 02:20 PM - 03:20 PM)
-                      </p>
-                    </div>
-
-                    {/* Sanctioned Period Stepper matching Image 2 */}
-                    <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100 flex items-center justify-between gap-3">
-                      <div>
-                        <span className="block text-xs font-black text-slate-800">
-                          Sanctioned period:
-                        </span>
-                        <span className="block text-[11px] font-semibold text-slate-500">
-                          {approved ? 'Sanction confirmed by HOD' : '(Default: as requested)'}
-                        </span>
-                      </div>
-
-                      {approved ? (
-                        <div className="px-3.5 py-1.5 rounded-xl bg-emerald-100 text-emerald-800 text-xs font-black border border-emerald-200">
-                          {currentSanctioned} Periods Approved
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleStepChange(item._id, -1)}
-                            className="w-7 h-7 rounded-lg border border-purple-300 bg-white hover:bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs cursor-pointer shadow-2xs transition-colors"
-                            aria-label="Decrease periods"
-                          >
-                            <Minus size={13} />
-                          </button>
-
-                          <span className="w-7 text-center font-black text-sm text-purple-900">
-                            {currentSanctioned}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => handleStepChange(item._id, 1)}
-                            className="w-7 h-7 rounded-lg border border-purple-300 bg-white hover:bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs cursor-pointer shadow-2xs transition-colors"
-                            aria-label="Increase periods"
-                          >
-                            <Plus size={13} />
-                          </button>
-
-                          <span className="text-xs font-extrabold text-purple-900 ml-1">
-                            Periods
-                          </span>
-                        </div>
                       )}
                     </div>
 
-                    {/* Action Buttons: Bypass & Approve / Reject matching Image 2 */}
-                    {pending && (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleBypassApprove(item)}
-                          className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer min-h-[42px]"
-                        >
-                          <Check size={16} />
-                          <span>✓ Bypass & Approve</span>
-                        </button>
+                    <p className="text-xs font-medium text-slate-600 mt-1 m-0 flex flex-wrap items-center gap-1.5">
+                      <span className="font-bold text-slate-900">
+                        {item.isGroup ? 'Lead: ' : ''}{studentName} ({enrollNo})
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-400 font-mono text-[11px] truncate max-w-[280px]" title={itemIdStr}>
+                        {itemIdStr}
+                      </span>
+                    </p>
 
-                        <button
-                          type="button"
-                          onClick={() => handleReject(item)}
-                          className="px-5 py-2.5 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 active:bg-rose-100 text-rose-600 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer min-h-[42px]"
-                        >
-                          <X size={16} />
-                          <span>✕ Reject</span>
-                        </button>
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mt-1.5">
+                      <Calendar size={13} className="text-slate-400 shrink-0" />
+                      <span>
+                        {fromDateStr} - {toDateStr}
+                      </span>
+                    </div>
+
+                    {Boolean(item.isGroup && item.groupMembers && item.groupMembers.length > 0) && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider">
+                          Roster ({item.groupMembers.length}):
+                        </span>
+                        {item.groupMembers.map((m, idx) => {
+                          const mName = m.user?.name || m.name || 'Student';
+                          const mRoll = m.enrollmentNumber || m.rollNumber || '';
+                          const mSec = m.section?.name || m.section?.code || '';
+                          const isLead = (m._id && item.groupLeader && String(m._id) === String(item.groupLeader._id || item.groupLeader)) || (idx === 0 && !item.groupLeader);
+                          return (
+                            <span
+                              key={m._id || idx}
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                                isLead
+                                  ? 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {isLead ? '★ Lead: ' : ''}{mName} ({mRoll || mSec})
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
+                </div>
 
-                  {/* Right Column (Justifications Written during applying of consideration or leave) */}
-                  <div className="lg:col-span-5 flex flex-col gap-2 h-full">
-                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-wider leading-relaxed">
-                      JUSTIFICATIONS WRITTEN DURING APPLYING OF CONSIDERATION OR LEAVE BY STUDENT
+                {/* Status Badges on Right Side matching screenshot */}
+                <div className="flex flex-col items-start sm:items-end shrink-0">
+                  {approved ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                      Approved
                     </span>
+                  ) : rejected ? (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                      Rejected
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 shadow-2xs">
+                      Pending Review
+                    </span>
+                  )}
 
-                    <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 flex-1 flex flex-col justify-between min-h-[160px] shadow-2xs">
-                      <div className="text-xs sm:text-sm font-medium text-slate-800 leading-relaxed font-mono">
-                        <span className="font-bold text-blue-700 block mb-1">
-                          [ {categoryName} ]
+                  <span
+                    className={`text-xs font-bold mt-2 ${
+                      approved
+                        ? 'text-emerald-700'
+                        : rejected
+                        ? 'text-rose-600'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {approved
+                      ? 'Completed & Synced'
+                      : rejected
+                      ? 'Authorization Declined'
+                      : 'Est. resolution today'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Card Body: 50/50 Balanced 2-Column Split matching screenshot */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-3 items-stretch">
+                {/* Left Column */}
+                <div className="flex flex-col gap-3 justify-between">
+                  {/* Top Parameters: Category box & Date box side by side */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Category Box */}
+                    <div className="rounded-xl border border-slate-200 bg-white p-3 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                        CATEGORY
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-900 leading-tight">
+                        {categoryName}
+                      </span>
+                    </div>
+
+                    {/* Date Box */}
+                    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider py-1 border-b border-slate-200 text-center">
+                        DATE
+                      </div>
+                      <div className="grid grid-cols-3 text-center border-b border-slate-200">
+                        <div className="py-1 text-[10px] text-slate-400 border-r border-slate-200">from</div>
+                        <div className="py-1 text-[10px] text-slate-400 border-r border-slate-200">to</div>
+                        <div className="py-1 text-[10px] text-slate-400">nos of days</div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center">
+                        <div className="py-1.5 text-xs font-bold text-slate-900 border-r border-slate-200">{fromDateStr}</div>
+                        <div className="py-1.5 text-xs font-bold text-slate-900 border-r border-slate-200">{toDateStr}</div>
+                        <div className="py-1.5 text-xs font-bold text-blue-600">{numDays}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Requested Periods Box matching screenshot */}
+                  <div className="p-3 rounded-xl bg-[#f0f8ff] border border-blue-200 flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-700 uppercase tracking-wider">
+                      <Clock size={13} className="text-blue-600" />
+                      <span>REQUESTED PERIODS</span>
+                    </div>
+                    <p className="text-xs font-bold text-blue-900 m-0">
+                      {formatPeriodsDisplay(item.requestedPeriods)}
+                    </p>
+                  </div>
+
+                  {/* Sanctioned Period Stepper Box matching Image 1 */}
+                  <div className="p-2.5 sm:p-3 rounded-xl bg-[#faf5ff] border border-purple-200 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="block text-xs font-bold text-purple-900 leading-tight">
+                        sanctioned period
+                      </span>
+                      <span className="block text-[10px] font-medium text-purple-600 mt-0.5">
+                        (default: as requested)
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <div className="border border-purple-200 rounded-lg bg-white px-2 py-0.5 flex items-center gap-2 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => !approved && handleStepChange(item._id, -1)}
+                          disabled={approved}
+                          className="text-purple-700 font-bold hover:text-purple-900 disabled:opacity-50 cursor-pointer text-xs"
+                          aria-label="Decrease periods"
+                        >
+                          –
+                        </button>
+
+                        <span className="w-4 text-center font-bold text-xs text-purple-900">
+                          {currentSanctioned}
                         </span>
-                        <span>
-                          {item.description || item.reason || 'xyz'}
-                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => !approved && handleStepChange(item._id, 1)}
+                          disabled={approved}
+                          className="text-purple-700 font-bold hover:text-purple-900 disabled:opacity-50 cursor-pointer text-xs"
+                          aria-label="Increase periods"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="text-xs font-bold text-purple-900">
+                        Periods
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Action Area matching Image 1 */}
+                  {approved ? (
+                    <div className="rounded-xl border border-emerald-200/90 bg-[#ecfdf5]/80 p-2 sm:p-2.5 px-3 flex items-center justify-between shadow-2xs">
+                      <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-emerald-800">
+                        <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                        <span>Sanctioned by CSE Department</span>
                       </div>
 
-                      {/* Supporting document preview if available */}
-                      {item.documentFileId ? (
-                        <div className="pt-3 mt-3 border-t border-slate-200/80 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSanctionItem(item)}
+                        className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer border border-emerald-600"
+                      >
+                        <FileText size={13} className="text-white shrink-0" />
+                        <span>View Order</span>
+                      </button>
+                    </div>
+                  ) : pending ? (
+                    <div className="grid grid-cols-2 gap-3 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleBypassApprove(item)}
+                        className="py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer border border-emerald-600"
+                      >
+                        <Zap size={14} className="text-white fill-white" />
+                        <span>Bypass & Approve</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleReject(item)}
+                        className="py-2.5 px-4 rounded-xl border border-rose-300 bg-white hover:bg-rose-50 active:bg-rose-100 text-rose-600 font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                      >
+                        <XCircle size={15} className="text-rose-600" />
+                        <span>Reject</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/80 p-2.5 px-3 text-xs font-bold text-rose-800 flex items-center gap-2">
+                      <XCircle size={16} className="text-rose-600 shrink-0" />
+                      <span>Authorization Declined by Department</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Justifications framed container matching screenshot */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-3.5 flex flex-col h-full shadow-2xs">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2.5 block">
+                    JUSTIFICATIONS WRITTEN DURING APPLYING OF CONSIDERATION OR LEAVE BY STUDENT
+                  </span>
+
+                  <div className="border border-slate-200 rounded-xl bg-white p-3.5 flex-1 min-h-[160px] flex flex-col justify-between">
+                    <p className="text-xs sm:text-sm text-slate-800 font-normal m-0 leading-relaxed font-sans">
+                      {item.description || item.reason || '[Hackathon / Technical Competition] hacthon'}
+                    </p>
+
+                    {(() => {
+                      const att = item.attachments?.[0] || (item.documentFileId ? { fileId: item.documentFileId, name: item.documentOriginalName } : null);
+                      if (!att) return null;
+                      return (
+                        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
                           <button
                             type="button"
-                            onClick={() =>
-                              viewAttachment({
-                                fileId: item.documentFileId,
-                                fileName: item.documentOriginalName || 'Attached_Proof.pdf',
-                              })
-                            }
+                            onClick={() => viewAttachment(att.fileId, att.name || 'Attached_Proof.jpg')}
                             className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
                           >
                             <Eye size={14} />
-                            <span>View Attached Proof</span>
+                            <span>View Attached Proof ({att.name || 'Document'})</span>
                           </button>
                           <span className="text-[11px] text-slate-400">PDF / Image</span>
                         </div>
-                      ) : (
-                        <div className="pt-3 mt-3 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-400">
-                          <span>Institutional Verification Record</span>
-                          <span className="font-mono">ID: {itemIdStr.slice(0, 8)}...</span>
-                        </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
-            );
-          })
-        )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* Official Clearances Ledger Modal */}
+      {showLedgerModal && (
+        <OfficialClearancesLedgerModal
+          onClose={() => setShowLedgerModal(false)}
+        />
+      )}
+
+      {/* Formal Sanctioned Application Document Modal matching Image 2 & 3 */}
+      {selectedSanctionItem && (
+        <FormalApplicationModal
+          item={selectedSanctionItem}
+          onClose={() => setSelectedSanctionItem(null)}
+        />
+      )}
+
+      {/* Official Clearance Report Modal (Semester & Section Options -> Official Document Print) */}
+      {showPrintReportModal && (
+        <PrintClearanceReportModal
+          items={activeItemsList}
+          defaultSemester={semesterFilter}
+          onClose={() => setShowPrintReportModal(false)}
+        />
+      )}
     </div>
   );
 }

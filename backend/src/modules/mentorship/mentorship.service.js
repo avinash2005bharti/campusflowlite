@@ -30,7 +30,7 @@ export const listMentorGroups = async (query = {}) => {
 };
 
 export const createMentorGroup = async (
-  { department, tgId, academicYear, semester, section, sectionId, studentIds = [] },
+  { department, tgId, academicYear, semester, section, sectionCode, sectionId, studentIds = [], reassign = false },
   actorUser = null
 ) => {
   const teacher = await Teacher.findById(tgId).populate('user', 'name email');
@@ -50,23 +50,35 @@ export const createMentorGroup = async (
   // Resolve section if provided
   let resolvedSectionDoc = null;
   const targetSectionId = sectionId || (section && typeof section === 'object' ? section._id : null);
+  const targetCodeOrName = sectionCode || (typeof section === 'string' ? section : null);
+
   if (targetSectionId) {
     resolvedSectionDoc = await Section.findById(targetSectionId);
-  } else if (section && typeof section === 'string') {
-    // E.g. "Section A" or "CSE-A"
-    const cleanedCode = section.replace(/Section\s*/i, '').trim();
+  } else if (targetCodeOrName) {
+    const cleanedCode = targetCodeOrName.replace(/Section\s*/i, '').trim();
     resolvedSectionDoc = await Section.findOne({
       $or: [
-        { code: section },
+        { code: targetCodeOrName },
         { code: `CSE-${cleanedCode}` },
-        { name: section },
+        { name: targetCodeOrName },
+        { name: `Section ${cleanedCode}` },
       ],
     });
+
+    if (!resolvedSectionDoc && (department || teacher.department)) {
+      resolvedSectionDoc = await Section.findOne({
+        department: department || teacher.department,
+        $or: [
+          { code: new RegExp(cleanedCode, 'i') },
+          { name: new RegExp(cleanedCode, 'i') },
+        ],
+      });
+    }
   }
 
-  const finalSemester = parsedSemester || resolvedSectionDoc?.semester || null;
+  const finalSemester = parsedSemester || resolvedSectionDoc?.semester || 5;
   const finalSectionId = resolvedSectionDoc?._id || null;
-  const activeYear = academicYear || '2025-2026';
+  const activeYear = academicYear || '2025-26';
 
   // Prevent duplicate active appointment for the same teacher in the same academic session
   const existingTeacherGroup = await MentorGroup.findOne({
@@ -74,9 +86,17 @@ export const createMentorGroup = async (
     academicYear: activeYear,
     isActive: true,
   });
+
   if (existingTeacherGroup) {
+    if (reassign) {
+      return updateMentorGroup(
+        existingTeacherGroup._id,
+        { department, tgId, academicYear: activeYear, semester: finalSemester, section, sectionCode, sectionId, studentIds },
+        actorUser
+      );
+    }
     throw ApiError.conflict(
-      `${teacher.user?.name || teacher.designation || 'This faculty member'} is already actively appointed as a Tutor Guardian for academic session ${activeYear}. Revoke or modify existing assignment first.`
+      `${teacher.user?.name || teacher.designation || 'This faculty member'} is already actively appointed as a Tutor Guardian for academic session ${activeYear}. Modify or reassign the existing cohort directly.`
     );
   }
 
@@ -101,7 +121,6 @@ export const createMentorGroup = async (
   if (finalStudentIds.length === 0 && finalSectionId) {
     const sectionStudents = await Student.find({
       section: finalSectionId,
-      mentorGroup: null,
     }).select('_id');
     finalStudentIds = sectionStudents.map((s) => s._id);
   } else if (finalStudentIds.length > 0) {
@@ -135,6 +154,9 @@ export const createMentorGroup = async (
     );
   }
 
+  // Ensure teacher has isTG: true
+  await Teacher.findByIdAndUpdate(teacher._id, { isTG: true });
+
   // Record Immutable Audit Log
   await AuditLog.create({
     actor: actorUser?._id || actorUser?.id || null,
@@ -150,6 +172,148 @@ export const createMentorGroup = async (
       section: resolvedSectionDoc?.code || resolvedSectionDoc?.name || null,
       studentCount: finalStudentIds.length,
     },
+  });
+
+  return MentorGroup.findById(group._id)
+    .populate('department', 'name code')
+    .populate('section', 'name code year semester')
+    .populate({
+      path: 'tg',
+      populate: { path: 'user', select: 'name email phone' },
+    })
+    .populate({
+      path: 'students',
+      populate: [
+        { path: 'user', select: 'name email phone' },
+        { path: 'section', select: 'name code' },
+      ],
+    });
+};
+
+export const updateMentorGroup = async (
+  groupId,
+  { department, tgId, academicYear, semester, section, sectionCode, sectionId, studentIds },
+  actorUser = null
+) => {
+  const group = await MentorGroup.findById(groupId).populate('tg').populate('section');
+  if (!group) {
+    throw ApiError.notFound('Mentor group not found');
+  }
+
+  const before = group.toObject();
+
+  // Parse semester
+  let parsedSemester = group.semester;
+  if (semester !== undefined && semester !== null) {
+    parsedSemester = typeof semester === 'string' ? parseInt(semester.replace(/\D/g, ''), 10) : Number(semester);
+    if (isNaN(parsedSemester) || parsedSemester < 1 || parsedSemester > 8) {
+      parsedSemester = group.semester || 5;
+    }
+  }
+
+  // Resolve section
+  let resolvedSectionDoc = null;
+  const targetSectionId = sectionId || (section && typeof section === 'object' ? section._id : null);
+  const targetCodeOrName = sectionCode || (typeof section === 'string' ? section : null);
+
+  if (targetSectionId) {
+    resolvedSectionDoc = await Section.findById(targetSectionId);
+  } else if (targetCodeOrName) {
+    const cleanedCode = targetCodeOrName.replace(/Section\s*/i, '').trim();
+    resolvedSectionDoc = await Section.findOne({
+      $or: [
+        { code: targetCodeOrName },
+        { code: `CSE-${cleanedCode}` },
+        { name: targetCodeOrName },
+        { name: `Section ${cleanedCode}` },
+      ],
+    });
+
+    if (!resolvedSectionDoc && group.department) {
+      resolvedSectionDoc = await Section.findOne({
+        department: group.department,
+        $or: [
+          { code: new RegExp(cleanedCode, 'i') },
+          { name: new RegExp(cleanedCode, 'i') },
+        ],
+      });
+    }
+  }
+
+  const activeYear = academicYear || group.academicYear || '2025-26';
+  const finalSemester = parsedSemester || resolvedSectionDoc?.semester || group.semester || 5;
+  const finalSectionId = resolvedSectionDoc?._id || group.section?._id || group.section;
+
+  // If changing section, check if new section already has another active TG in this academic year
+  if (finalSectionId && finalSectionId.toString() !== (group.section?._id || group.section || '').toString()) {
+    const conflictingGroup = await MentorGroup.findOne({
+      _id: { $ne: group._id },
+      section: finalSectionId,
+      academicYear: activeYear,
+      isActive: true,
+    }).populate({ path: 'tg', populate: { path: 'user', select: 'name' } });
+
+    if (conflictingGroup) {
+      const tgName = conflictingGroup.tg?.user?.name || 'another faculty member';
+      throw ApiError.conflict(
+        `Section ${resolvedSectionDoc?.name || resolvedSectionDoc?.code} already has an active Tutor Guardian (${tgName}) for session ${activeYear}.`
+      );
+    }
+  }
+
+  // If teacher tgId is changing, verify
+  let newTgId = group.tg?._id || group.tg;
+  if (tgId && tgId.toString() !== newTgId.toString()) {
+    const teacher = await Teacher.findById(tgId);
+    if (!teacher) throw ApiError.notFound('Target faculty member not found.');
+    newTgId = teacher._id;
+  }
+
+  // Update group fields
+  group.tg = newTgId;
+  group.academicYear = activeYear;
+  group.semester = finalSemester;
+  group.section = finalSectionId;
+
+  // Manage students: If section changed, unassign old students and reassign new section's students
+  if (finalSectionId && finalSectionId.toString() !== (before.section?._id || before.section || '').toString()) {
+    // Unassign old students who belonged to this mentor group
+    await Student.updateMany(
+      { mentorGroup: group._id },
+      { $set: { mentorGroup: null } }
+    );
+
+    // Assign students of the new section
+    const sectionStudents = await Student.find({
+      section: finalSectionId,
+    });
+    const newStudentIds = sectionStudents.map((s) => s._id);
+    group.students = newStudentIds;
+
+    if (newStudentIds.length > 0) {
+      await Student.updateMany(
+        { _id: { $in: newStudentIds } },
+        { $set: { mentorGroup: group._id } }
+      );
+    }
+  } else if (Array.isArray(studentIds) && studentIds.length > 0) {
+    group.students = studentIds;
+  }
+
+  group.isActive = true;
+  await group.save();
+
+  // Ensure TG flag on Teacher
+  await Teacher.findByIdAndUpdate(newTgId, { isTG: true });
+
+  // Audit Log
+  await AuditLog.create({
+    actor: actorUser?._id || actorUser?.id || null,
+    action: 'REASSIGN_TG_SECTION',
+    entityType: 'MentorGroup',
+    entityId: group._id,
+    before,
+    after: group.toObject(),
   });
 
   return MentorGroup.findById(group._id)
@@ -259,6 +423,9 @@ export const revokeMentorGroup = async (groupId, actorUser = null) => {
     { $set: { mentorGroup: null } }
   );
 
+  // Revert TG flag on Teacher
+  await Teacher.findByIdAndUpdate(group.tg?._id || group.tg, { isTG: false });
+
   await AuditLog.create({
     actor: actorUser?._id || actorUser?.id || null,
     action: 'REVOKE_TG',
@@ -305,6 +472,7 @@ export const getMyCohort = async (teacherId) => {
 export default {
   listMentorGroups,
   createMentorGroup,
+  updateMentorGroup,
   updateMentorGroupStudents,
   revokeMentorGroup,
   getMyCohort,

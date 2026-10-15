@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useERP } from '../../context/ERPContext.jsx';
 import { PageHeader, Card, CardHeader, CardTitle, Badge, Button } from '../../components/common';
 import { User, GraduationCap, ShieldCheck, Mail, Phone, Building2, Calendar, KeyRound } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import StudentAccountSettingsModal from '../../components/modals/StudentAccountSettingsModal.jsx';
 
 export default function StudentProfile() {
   const { currentUser } = useERP();
-  const navigate = useNavigate();
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('password');
   const profile = currentUser?.profile || {};
   const mentor = profile?.mentorGroup?.tg?.user;
 
@@ -15,8 +16,8 @@ export default function StudentProfile() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="Student Profile & Mentorship"
-        description="Academic enrollment details and assigned Tutor Guardian configuration."
+        title="My Profile & Mentor"
+        description="Your academic enrollment details and assigned Tutor Guardian."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -26,7 +27,7 @@ export default function StudentProfile() {
             {currentUser?.name?.charAt(0) || 'S'}
           </div>
           <h2 className="text-lg font-black text-slate-900 m-0">{currentUser?.name}</h2>
-          <span className="badge badge-indigo text-xs mt-1.5 font-bold">STUDENT</span>
+          <span className="badge badge-indigo text-xs mt-1.5 font-bold">Student</span>
           <div className="text-xs text-slate-500 mt-2">{currentUser?.email}</div>
           <div className="text-xs text-slate-700 font-semibold mt-0.5">{studentMobile}</div>
 
@@ -36,9 +37,24 @@ export default function StudentProfile() {
               size="xs"
               icon={<KeyRound size={14} />}
               fullWidth
-              onClick={() => navigate('/change-password')}
+              onClick={() => {
+                setSettingsTab('password');
+                setShowSettingsModal(true);
+              }}
             >
               Change Password
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              icon={<Mail size={14} />}
+              fullWidth
+              onClick={() => {
+                setSettingsTab('email');
+                setShowSettingsModal(true);
+              }}
+            >
+              Change Email Address
             </Button>
           </div>
         </Card>
@@ -112,11 +128,19 @@ export default function StudentProfile() {
                   </div>
                 </div>
               </div>
-              <Badge variant="primary">Tier-1 Approver</Badge>
+              <Badge variant="primary">Faculty Mentor</Badge>
             </div>
           </div>
         </Card>
       </div>
+
+      {showSettingsModal && (
+        <StudentAccountSettingsModal
+          initialTab={settingsTab}
+          onClose={() => setShowSettingsModal(false)}
+        />
+      )}
     </div>
   );
 }
+

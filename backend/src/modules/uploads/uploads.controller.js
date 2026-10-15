@@ -17,6 +17,11 @@ export const getSignedUrl = asyncHandler(async (req, res) => {
   return sendSuccess(res, result);
 });
 
+export const uploadDirect = asyncHandler(async (req, res) => {
+  const result = await uploadsService.uploadDirect(req.file, req.user?.id);
+  return sendSuccess(res, result);
+});
+
 export const deleteUpload = asyncHandler(async (req, res) => {
   const result = await uploadsService.deleteFile(req.params.fileId, req.user.id);
   return sendSuccess(res, result);
@@ -25,6 +30,8 @@ export const deleteUpload = asyncHandler(async (req, res) => {
 export default {
   getAuth,
   verify,
+  uploadDirect,
   getSignedUrl,
   deleteUpload,
 };
+

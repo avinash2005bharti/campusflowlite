@@ -14,7 +14,9 @@ import {
   Inbox,
   ArrowRight,
   User,
+  KeyRound,
 } from 'lucide-react';
+import StudentAccountSettingsModal from '../../components/modals/StudentAccountSettingsModal.jsx';
 
 export default function StudentDashboard() {
   const { currentUser, openModal } = useERP();
@@ -23,6 +25,7 @@ export default function StudentDashboard() {
   const [summary, setSummary] = useState(null);
   const [recentConsiderations, setRecentConsiderations] = useState([]);
   const [recentLeaves, setRecentLeaves] = useState([]);
+  const [showAccountSettingsModal, setShowAccountSettingsModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -63,47 +66,54 @@ export default function StudentDashboard() {
   const tgTeacher = studentProfile.mentorGroup?.tg;
 
   const approvedLeavesCount = summary?.leaves?.approved ?? 0;
+  const pendingLeavesCount = summary?.leaves?.pending ?? 0;
   const approvedConsiderationsCount = summary?.considerations?.approved ?? 0;
+  const pendingConsiderationsCount = summary?.considerations?.pending ?? 0;
 
-  const approvedLeaveDays = recentLeaves
+  // Real data calculations from backend summary or fallback to records
+  const approvedLeaveDays = summary?.leaves?.approvedDays ?? recentLeaves
     .filter((l) => l.status === 'APPROVED_BY_HOD' || l.status === 'APPROVED')
     .reduce((sum, l) => sum + (l.totalDays || 1), 0);
 
-  const approvedPeriodsCount = recentConsiderations
+  const approvedLecturesCount = summary?.considerations?.approvedLectures ?? recentConsiderations
     .filter((c) => c.status === 'APPROVED_BY_HOD' || c.status === 'APPROVED')
-    .reduce((sum, c) => sum + (c.hodReview?.approvedPeriods || c.requestedPeriods || 0), 0);
+    .reduce((sum, c) => sum + (c.hodReview?.approvedPeriods ?? c.requestedPeriods ?? 0), 0);
+
+  const pendingLecturesCount = summary?.considerations?.pendingLectures ?? recentConsiderations
+    .filter((c) => c.status === 'PENDING' || c.status === 'RECOMMENDED_BY_TG')
+    .reduce((sum, c) => sum + (c.requestedPeriods ?? 0), 0);
 
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'APPROVED_BY_HOD':
       case 'APPROVED':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
             Approved by HOD
           </span>
         );
       case 'RECOMMENDED_BY_TG':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
             Recommended by TG
           </span>
         );
       case 'REJECTED':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
             Rejected
           </span>
         );
       case 'CANCELLED':
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
             Cancelled
           </span>
         );
       case 'PENDING':
       default:
         return (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
             Pending Review
           </span>
         );
@@ -111,9 +121,9 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-10 font-sans">
+    <div className="flex flex-col gap-6 w-full pb-10 font-sans">
       {/* =======================================================================
-          TOP ROW: Greeting & Header Controls matching student dashboard.png
+          TOP ROW: Greeting & Header Controls
           ======================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -133,6 +143,17 @@ export default function StudentDashboard() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowAccountSettingsModal(true)}
+            className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            title="Change Email or Password"
+          >
+            <KeyRound size={13} className="text-blue-600" />
+            <span className="hidden sm:inline">Change Email / Password</span>
+            <span className="sm:hidden">Settings</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchData}
@@ -157,10 +178,10 @@ export default function StudentDashboard() {
       </div>
 
       {/* =======================================================================
-          3 ACTION BUTTONS matching student dashboard.png & myrequest.png
+          3 ACTION BUTTONS
           1) Request Consideration
-          2) Apply Leave
-          3) My Requests (with clear visible clock logo)
+          2) Apply for Leave
+          3) My Requests
           ======================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Button 1: Request Consideration */}
@@ -187,11 +208,11 @@ export default function StudentDashboard() {
             <PlusCircle size={18} />
           </div>
           <span className="text-sm sm:text-base font-extrabold text-slate-900 group-hover:text-emerald-900 transition-colors">
-            Apply Leave
+            Apply for Leave
           </span>
         </button>
 
-        {/* Button 3: My Requests (with clear visible Clock logo pill matching myrequest.png) */}
+        {/* Button 3: My Requests */}
         <button
           type="button"
           onClick={() => navigate('/student/requests')}
@@ -207,9 +228,9 @@ export default function StudentDashboard() {
       </div>
 
       {/* =======================================================================
-          METRICS / APPROVED STATS ROW (Aligned under left buttons)
+          METRICS: DISPLAY ONLY LECTURES AND LEAVES (NO ON-DUTY CREDITS)
           ======================================================================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -221,7 +242,7 @@ export default function StudentDashboard() {
             <span className="block text-xs text-slate-500 font-medium mt-0.5">
               {approvedLeavesCount > 0
                 ? `${approvedLeaveDays} Day${approvedLeaveDays !== 1 ? 's' : ''} Sanctioned`
-                : 'Leaves Availed: 0 Days'}
+                : '0 Days Sanctioned'}
             </span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 flex items-center justify-center shrink-0">
@@ -232,19 +253,38 @@ export default function StudentDashboard() {
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
             <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              ON-DUTY (OD) CREDITS
+              APPROVED LECTURES
             </span>
-            <span className="block text-2xl font-black text-slate-900 mt-0.5">
-              {approvedConsiderationsCount}
+            <span className="block text-2xl font-black text-emerald-700 mt-0.5">
+              {approvedLecturesCount}
             </span>
             <span className="block text-xs text-emerald-600 font-medium mt-0.5">
               {approvedConsiderationsCount > 0
-                ? `${approvedPeriodsCount} Lectures Credited`
-                : 'Attendance Credit Granted'}
+                ? `${approvedConsiderationsCount} Request${approvedConsiderationsCount !== 1 ? 's' : ''} Approved`
+                : '0 Lectures Approved'}
             </span>
           </div>
           <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
             <CheckCircle2 size={18} />
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              PENDING LECTURES
+            </span>
+            <span className="block text-2xl font-black text-amber-700 mt-0.5">
+              {pendingLecturesCount}
+            </span>
+            <span className="block text-xs text-amber-600 font-medium mt-0.5">
+              {pendingConsiderationsCount > 0
+                ? `${pendingConsiderationsCount} Request${pendingConsiderationsCount !== 1 ? 's' : ''} Under Review`
+                : 'No Pending Requests'}
+            </span>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+            <Clock size={18} />
           </div>
         </div>
       </div>
@@ -275,7 +315,7 @@ export default function StudentDashboard() {
         </div>
 
         <div className="text-xs text-slate-500 font-medium md:max-w-xs md:text-right">
-          TG reviews all OD considerations & leaves prior to HOD approval.
+          Tutor Guardian reviews attendance consideration requests and leave applications before Head of Department approval.
         </div>
       </div>
 
@@ -305,14 +345,14 @@ export default function StudentDashboard() {
               No Consideration Requests
             </h3>
             <p className="text-xs text-slate-400 max-w-sm mt-1 mb-4 font-normal">
-              Submit attendance waivers for hackathons, sports, or official college events.
+              Submit attendance consideration requests for hackathons, sports tournaments, or college activities.
             </p>
             <button
               type="button"
               onClick={() => openModal('REQUEST_CONSIDERATION')}
               className="px-4 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
             >
-              Apply Consideration
+              Request Consideration
             </button>
           </div>
         ) : (
@@ -324,12 +364,17 @@ export default function StudentDashboard() {
                 onClick={() => navigate('/student/requests')}
               >
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold text-slate-900">{req.eventTitle}</span>
+                    {Boolean(req.isGroup || (req.groupMembers && req.groupMembers.length > 0)) && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        Group ({req.groupMembers?.length || 'Team'})
+                      </span>
+                    )}
                     {renderStatusBadge(req.status)}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5 m-0">
-                    {req.startDate} to {req.endDate} • {req.requestedPeriods} Periods
+                    {req.startDate} to {req.endDate} • {req.hodReview?.approvedPeriods ? `${req.hodReview.approvedPeriods} Lectures Approved` : `${req.requestedPeriods} Lecture${req.requestedPeriods !== 1 ? 's' : ''}`}
                   </p>
                 </div>
                 <div className="text-xs text-blue-600 font-bold flex items-center gap-1">
@@ -368,14 +413,14 @@ export default function StudentDashboard() {
               No Leave Applications
             </h3>
             <p className="text-xs text-slate-400 max-w-sm mt-1 mb-4 font-normal">
-              Apply for medical rest, official duty, or personal absence clearances.
+              Apply for medical leave, emergency leave, or casual absence.
             </p>
             <button
               type="button"
               onClick={() => openModal('APPLY_LEAVE')}
               className="px-4 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer shadow-2xs"
             >
-              Apply Leave
+              Apply for Leave
             </button>
           </div>
         ) : (
@@ -389,7 +434,7 @@ export default function StudentDashboard() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-900">
-                      {leave.leaveType} Leave ({leave.totalDays} Day{leave.totalDays !== 1 ? 's' : ''})
+                      {leave.leaveType ? `${leave.leaveType.replace(/_/g, ' ')} Leave` : 'Leave'} ({leave.totalDays} Day{leave.totalDays !== 1 ? 's' : ''})
                     </span>
                     {renderStatusBadge(leave.status)}
                   </div>
@@ -406,6 +451,12 @@ export default function StudentDashboard() {
           </div>
         )}
       </div>
+
+      {showAccountSettingsModal && (
+        <StudentAccountSettingsModal
+          onClose={() => setShowAccountSettingsModal(false)}
+        />
+      )}
     </div>
   );
 }

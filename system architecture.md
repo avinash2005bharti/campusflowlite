@@ -62,10 +62,13 @@ graph TD
 | Admin review (HOD leaves) | — | — | — | — | ✅ |
 | View TG review queue | — | — | ✅ | — | — |
 | View HOD review queue | — | — | — | ✅ | ✅ |
-| List/manage students | — | — | ✅ | ✅ | ✅ |
+| List/view students | — | — | ✅ | ✅ | ✅ |
+| Update student contact info | — | — | ✅ | ✅ | ✅ |
+| Delete student records | — | — | — | ✅ | ✅ |
+| Reassign student section/semester | — | — | — | ✅ | ✅ |
 | List/manage teachers | — | — | — | ✅ | ✅ |
-| Manage mentor groups | — | — | — | ✅ | ✅ |
-| Manage sections | — | — | — | ✅ | ✅ |
+| Manage mentor groups (TG appointments) | — | — | — | ✅ | ✅ |
+| Manage sections & academic master data | — | — | — | ✅ | ✅ |
 | List/manage all users | — | — | — | ✅* | ✅ |
 | Bulk import (Excel) | — | — | — | — | ✅ |
 | View audit logs | — | — | — | ✅ | ✅ |
@@ -486,3 +489,106 @@ graph LR
 - **Database**: MongoDB Atlas (cloud)
 - **File CDN**: ImageKit (cloud)
 - **Email**: Brevo transactional API (cloud)
+
+---
+
+## 13. Tutor Guardian (TG) Subsystem Architecture & Governance
+
+### 13.1 TG Workspace Component Hierarchy
+
+```
+frontend/src/
+├── pages/tg/
+│   ├── TgDashboard.jsx         # Executive metrics, active TG duty chips, quick actions, clearance ledger modal trigger
+│   ├── TgRequests.jsx          # Tier-1 review queue for student considerations and leaves with tabbed status filters
+│   └── TgMyStudents.jsx        # Assigned cohort student roster, search bar, read-only cohort badge, student cards
+├── components/
+│   ├── Sidebar.jsx             # TG Workspace navigation: Dashboard, Review Queue, My Students (Faculty Portal excluded)
+│   ├── Header.jsx              # Single canonical Teacher Dashboard button for faculty dual-role access
+│   ├── common/Badge.jsx        # WCAG AAA status indicators with automatic icons (Clock, XCircle, CheckCircle2)
+│   └── modals/
+│       ├── ReviewModal.jsx     # High-contrast Recommend to HOD and Reject buttons with focus rings
+│       ├── EditStudentModal.jsx# Read-only HOD-assigned Semester and Section; allows updating contact info only
+│       └── OfficialClearancesLedgerModal.jsx # Read-only scope in TG mode (isTgView=true); live API bindings without mock data
+```
+
+### 13.2 Frontend-to-Backend Data Flows
+
+```mermaid
+sequenceDiagram
+    participant TG as Tutor Guardian (Browser)
+    participant API as Express API (/api/v1)
+    participant SVC as Mentorship & Consideration Services
+    participant DB as MongoDB Atlas
+
+    %% 1. Loading Assigned Cohort
+    TG->>API: GET /mentorship/mine
+    API->>SVC: getMyCohort(req.user.teacherId)
+    SVC->>DB: MentorGroup.findOne({ tg: teacherId, isActive: true })
+    DB-->>SVC: MentorGroup with populated department, section & students
+    SVC-->>API: Active Cohort Document
+    API-->>TG: 200 OK { department, section, students }
+
+    %% 2. TG Reviewing Request
+    TG->>API: PATCH /considerations/:id/tg-review { decision, remarks }
+    API->>SVC: tgReview(id, data, actorUser)
+    Note over SVC: Validate decision (RECOMMEND / REJECT)<br/>Enforce remarks >= 5 chars on REJECT
+    SVC->>DB: Update ConsiderationRequest (status: RECOMMENDED_BY_TG / REJECTED)
+    SVC->>DB: Create AuditLog & Notification
+    SVC-->>API: Updated Record
+    API-->>TG: 200 OK { success: true }
+```
+
+### 13.3 HOD-Controlled Configuration & Governance Rules
+
+1. **Cohort Scope Immutability**:
+   - A Tutor Guardian is designated by the HOD for a specific Section and Semester (stored in `MentorGroup`).
+   - The TG cannot change, filter, or reassign sections or departments.
+   - All dropdown controls that previously allowed selecting department, semester, or section in the TG interface have been removed and replaced with static, read-only HOD-assigned badges.
+2. **Student Deletion Restriction**:
+   - TGs do NOT possess administrative authority to delete student records from the college ERP.
+   - `DELETE /api/v1/students/:id` is strictly protected by `authorize('HOD', 'ADMIN')`. Attempted deletion requests by TG return `403 Forbidden`.
+   - The `Delete` button has been removed from `TgMyStudents.jsx`.
+3. **Terminology Standardization**:
+   - All user-facing terminology strictly uses "Student" and "Students" ("My Students", "Student List", "Total Students", "No Students Found", "Review Student Requests").
+   - Internal database attributes (`MentorGroup.students`, `Student.mentorGroup`) and API routes remain intact to preserve full backward compatibility.
+4. **Accessible Visual Contrast**:
+   - "Recommended by TG" badges use high-contrast amber styling (`#78350F` on `#FEF3C7` with `#F59E0B` border, >7:1 ratio) with a `Clock` icon.
+   - "Rejected" badges use high-contrast rose styling (`#881337` on `#FFE4E6` with `#F43F5E` border, >8:1 ratio) with an `XCircle` icon.
+   - Review modal action buttons provide prominent borders, active color fills, and keyboard focus rings.
+
+---
+
+## 14. Removed & Deprecated Modules (Scope Alignment)
+
+In strict accordance with the approved departmental ERP Lite scope, the system has been streamlined around **three primary user roles**:
+1. **HOD (Head of Department)**
+2. **TG (Tutor Guardian / Mentor)**
+3. **Student**
+
+### 14.1 Deprecated Teacher Portal & Dual-Role Workflows
+- **Removed User-Facing Elements**:
+  - Legacy Teacher Dashboard (`/teacher`) and Teacher Leaves (`/teacher/leaves`) routes have been deprecated and redirected to the TG Workspace (`/tg` and `/tg/requests`).
+  - The "Switch to Faculty / TG Portal" button and the secondary "Teacher Dashboard" header link have been removed from `Header.jsx`.
+  - Public teacher registration (`/register/teacher`) has been removed from public access and redirects to student registration (`/register`). Faculty members are onboarded exclusively by Department Administration.
+  - The "Faculty" tab has been removed from `LoginPage.jsx`.
+- **Preserved Internal Data Models**:
+  - `Teacher.js`, `MentorGroup.js`, and faculty relations in `LeaveApplication.js` are preserved internally to support teacher leave approvals by HOD, mentorship mapping, and audit trails without data loss.
+
+### 14.2 Out-of-Scope Attendance Modules
+- **Excluded Functionality**:
+  - Daily attendance marking, period-by-period roll calls, percentage calculators, and biometrics/timetable generation are strictly out of scope.
+  - The system focuses exclusively on **Attendance Consideration Requests** (formal requests by students for sanctioned attendance credit due to approved hackathons, sports, cultural events, or academic duties) and **Student & Faculty Leave Applications**.
+
+---
+
+## 15. Remaining Limitations & Verified Environment Boundaries
+
+| Component | Status | Operational Boundary / Verification Note |
+|---|:---:|---|
+| **Transactional Email Service** | Simulated / Fallback | `sendEmail.js` is wired and functional with console logging. Live Brevo / SMTP delivery activates when credentials are supplied in production `.env`. |
+| **ImageKit Cloud Storage** | Mock / Live Proxy | ImageKit SDK handles direct uploads and signed view URLs. In offline testing, signed URLs generate mock verification tokens. |
+| **Escalation Job** | Verified Active | Hourly CRON job scans for requests pending $>48\text{h}$ or assigned to TGs on approved leave, escalating them to HOD queues with audit entries. |
+| **Multi-Department Scoping** | Enforced | HOD consideration and leave queues filter by `targetDepartment = user.departmentId`. Super-admin users retain global visibility. |
+
+

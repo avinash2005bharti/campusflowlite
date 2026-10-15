@@ -73,7 +73,7 @@ export default function TgRequests() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="TG Review Queue"
-        description="Tier-1 evaluation of attendance considerations and leave applications for your mentee cohort."
+        description="Tier-1 evaluation of attendance considerations and leave applications for your assigned students."
       />
 
       {/* Main Mode Tabs & Status Filters */}
@@ -91,7 +91,7 @@ export default function TgRequests() {
             }`}
           >
             <FileText size={15} />
-            <span>Considerations (OD)</span>
+            <span>Attendance Consideration</span>
           </button>
           <button
             onClick={() => {
@@ -110,19 +110,34 @@ export default function TgRequests() {
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          {['PENDING', 'RECOMMENDED_BY_TG', 'REJECTED', 'ALL'].map((st) => (
-            <button
-              key={st}
-              onClick={() => setStatusFilter(st === 'ALL' ? '' : st)}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                statusFilter === (st === 'ALL' ? '' : st)
-                  ? 'bg-slate-900 text-white font-bold'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              {st === 'ALL' ? 'All' : st.replace(/_/g, ' ')}
-            </button>
-          ))}
+          {[
+            { id: 'PENDING', label: 'Pending Review' },
+            { id: 'RECOMMENDED_BY_TG', label: 'Recommended by TG' },
+            { id: 'REJECTED', label: 'Rejected' },
+            { id: 'ALL', label: 'All Requests' },
+          ].map((st) => {
+            const isSelected = statusFilter === (st.id === 'ALL' ? '' : st.id);
+            let activeColor = 'bg-slate-900 text-white font-bold border-slate-900';
+            if (isSelected) {
+              if (st.id === 'RECOMMENDED_BY_TG') activeColor = 'bg-amber-100 text-amber-950 border-amber-600 font-extrabold shadow-xs';
+              else if (st.id === 'REJECTED') activeColor = 'bg-rose-100 text-rose-950 border-rose-600 font-extrabold shadow-xs';
+              else if (st.id === 'PENDING') activeColor = 'bg-blue-100 text-blue-950 border-blue-600 font-extrabold shadow-xs';
+            }
+            return (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setStatusFilter(st.id === 'ALL' ? '' : st.id)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs transition-all border cursor-pointer flex items-center gap-1.5 ${
+                  isSelected
+                    ? `${activeColor} border-2`
+                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 font-semibold'
+                }`}
+              >
+                <span>{st.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -134,15 +149,15 @@ export default function TgRequests() {
               considerations.length === 0 ? (
                 <EmptyState
                   title="No Consideration Items in Queue"
-                  description="All mentee consideration requests have been evaluated."
+                  description="All student consideration requests have been evaluated."
                 />
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Mentee Student</TableHead>
+                      <TableHead>Student</TableHead>
                       <TableHead>Event & Category</TableHead>
-                      <TableHead>Periods</TableHead>
+                      <TableHead>Lectures</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -151,9 +166,16 @@ export default function TgRequests() {
                     {considerations.map((r) => (
                       <TableRow key={r._id} isSelected={selectedItem?._id === r._id}>
                         <TableCell>
-                          <div className="font-extrabold text-slate-900">{r.student?.user?.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-extrabold text-slate-900">{r.student?.user?.name}</span>
+                            {Boolean(r.isGroup || (r.sectionStudents && r.sectionStudents.length > 0)) && (
+                              <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                Group ({r.sectionStudents?.length || 'Section'})
+                              </span>
+                            )}
+                          </div>
                           <div className="text-[11px] text-slate-500">
-                            Roll: {r.student?.rollNumber} • {r.student?.section?.code}
+                            Roll: {r.student?.rollNumber} • {r.student?.section?.code || r.student?.section?.name}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -200,13 +222,13 @@ export default function TgRequests() {
             ) : leaves.length === 0 ? (
               <EmptyState
                 title="No Leave Applications in Queue"
-                description="No mentee leave requests currently awaiting TG review."
+                description="No student leave requests currently awaiting TG review."
               />
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Mentee Student</TableHead>
+                    <TableHead>Student</TableHead>
                     <TableHead>Category & Reason</TableHead>
                     <TableHead>Range</TableHead>
                     <TableHead>Status</TableHead>
@@ -271,7 +293,7 @@ export default function TgRequests() {
               <div className="flex items-start justify-between pb-3 border-b border-slate-200">
                 <div>
                   <div className="text-xs font-bold text-amber-700 uppercase">
-                    Mentee Application
+                    Student Application
                   </div>
                   <h3 className="text-base font-extrabold text-slate-900 m-0 mt-0.5">
                     {selectedItem.eventTitle || `${selectedItem.leaveType} Leave`}
@@ -297,6 +319,26 @@ export default function TgRequests() {
                   <span className="text-slate-500 font-semibold">Status:</span>{' '}
                   {getStatusBadge(selectedItem.status)}
                 </div>
+
+                {Boolean(selectedItem.isGroup && selectedItem.sectionStudents && selectedItem.sectionStudents.length > 0) && (
+                  <div>
+                    <span className="text-slate-500 font-semibold block mb-1">
+                      Students from your Section ({selectedItem.sectionStudents.length}):
+                    </span>
+                    <div className="flex flex-col gap-1 p-2 rounded-xl bg-indigo-50/60 border border-indigo-200 text-[11px]">
+                      {selectedItem.sectionStudents.map((m, idx) => {
+                        const mName = m.user?.name || m.name || 'Student';
+                        const mRoll = m.enrollmentNumber || m.rollNumber || '';
+                        return (
+                          <div key={m._id || idx} className="flex items-center justify-between py-0.5 border-b border-indigo-100 last:border-0">
+                            <span className="font-bold text-slate-800">{mName}</span>
+                            <span className="text-slate-500 font-mono text-[10px]">{mRoll}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {selectedItem.description && (
                   <div>

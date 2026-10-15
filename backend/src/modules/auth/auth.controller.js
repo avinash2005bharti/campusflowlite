@@ -62,6 +62,16 @@ export const getMe = asyncHandler(async (req, res) => {
   return sendSuccess(res, me);
 });
 
+export const sendStudentRegistrationOtp = asyncHandler(async (req, res) => {
+  const result = await authService.sendStudentRegistrationOtp(req.body);
+  return sendSuccess(res, result);
+});
+
+export const verifyRegistrationOtp = asyncHandler(async (req, res) => {
+  const result = await authService.verifyRegistrationOtp(req.body);
+  return sendSuccess(res, result);
+});
+
 export const registerStudent = asyncHandler(async (req, res) => {
   const result = await authService.registerStudent(req.body);
   return sendSuccess(res, result, 201);
@@ -72,12 +82,33 @@ export const registerTeacher = asyncHandler(async (req, res) => {
   return sendSuccess(res, result, 201);
 });
 
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const result = await authService.forgotPassword(req.body.email);
+  return sendSuccess(res, result);
+});
+
+export const resetPasswordWithOtp = asyncHandler(async (req, res) => {
+  const result = await authService.resetPasswordWithOtp(req.body);
+  return sendSuccess(res, result);
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const user = await authService.updateProfile(req.user.id, req.body);
+  return sendSuccess(res, user, 'Profile updated successfully');
+});
+
 export default {
   login,
   refresh,
   logout,
   changePassword,
+  updateProfile,
+  forgotPassword,
+  resetPasswordWithOtp,
   getMe,
+  sendStudentRegistrationOtp,
+  verifyRegistrationOtp,
   registerStudent,
   registerTeacher,
 };
+

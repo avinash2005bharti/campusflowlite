@@ -157,16 +157,28 @@ export default function AddFacultyModal({ onClose, onSuccess }) {
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                borderColor: '#CBD5E1',
+              }}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-50 border cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm cursor-pointer"
+              style={{
+                backgroundColor: '#047857',
+                color: '#ffffff',
+                borderColor: '#065F46',
+              }}
+              className="px-5 py-2.5 rounded-xl text-xs font-black text-white shadow-sm cursor-pointer border hover:bg-emerald-800 transition-all"
             >
-              {submitting ? 'Onboarding...' : 'Onboard Faculty'}
+              <span className="text-white">
+                {submitting ? 'Onboarding...' : 'Onboard Faculty'}
+              </span>
             </button>
           </div>
         </form>

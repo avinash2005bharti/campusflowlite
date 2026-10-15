@@ -16,10 +16,19 @@ import {
 export default function OfficialClearancesLedgerModal({
   initialTab = 'considerations', // 'considerations' | 'leaves'
   onClose,
+  isTgView = false,
+  assignedSemester = null,
+  assignedSection = null,
 }) {
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [semesterFilter, setSemesterFilter] = useState('All Semesters');
-  const [sectionFilter, setSectionFilter] = useState('All');
+  const [semesterFilter, setSemesterFilter] = useState(
+    isTgView && assignedSemester ? `Semester ${assignedSemester}` : 'All Semesters'
+  );
+  const [sectionFilter, setSectionFilter] = useState(
+    isTgView && assignedSection
+      ? String(assignedSection).replace(/^Section\s*/i, '').replace(/^CSE-/i, '').trim()
+      : 'All'
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   const [considerations, setConsiderations] = useState([]);
@@ -28,7 +37,11 @@ export default function OfficialClearancesLedgerModal({
 
   // Image 3: Print Semester Selection Modal state
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [targetPrintSemester, setTargetPrintSemester] = useState('All Semesters (Comprehensive Ledger)');
+  const [targetPrintSemester, setTargetPrintSemester] = useState(
+    isTgView && assignedSemester
+      ? `Semester ${assignedSemester}`
+      : 'All Semesters (Comprehensive Ledger)'
+  );
 
   const defaultConsiderations = [
     {
@@ -119,31 +132,25 @@ export default function OfficialClearancesLedgerModal({
         reportApi.getLeaves(),
       ]);
 
-      const conData =
-        conRes.status === 'fulfilled' && conRes.value?.data?.length > 0
-          ? conRes.value.data
-          : defaultConsiderations;
+      const rawCon = conRes.status === 'fulfilled' ? conRes.value : null;
+      const conData = Array.isArray(rawCon?.data)
+        ? rawCon.data
+        : Array.isArray(rawCon?.requests)
+        ? rawCon.requests
+        : Array.isArray(rawCon)
+        ? rawCon
+        : [];
       setConsiderations(conData);
 
-      if (leaveRes.status === 'fulfilled' && leaveRes.value?.data?.length > 0) {
-        setLeaves(leaveRes.value.data);
-      } else {
-        setLeaves(
-          Array.from({ length: 6 }, (_, i) => ({
-            _id: `leave-${i + 1}`,
-            student: {
-              user: { name: i % 2 === 0 ? 'Avinash Bharti' : 'Ayush Mishra' },
-              enrollmentNumber: `0105CS24110${i + 1}`,
-              section: { name: 'B', semester: 5 },
-            },
-            leaveType: i % 3 === 0 ? 'Medical Leave' : 'Casual Leave',
-            startDate: '10/10/2026',
-            endDate: '12/10/2026',
-            totalDays: 3,
-            status: 'APPROVED',
-          }))
-        );
-      }
+      const rawLeave = leaveRes.status === 'fulfilled' ? leaveRes.value : null;
+      const leaveData = Array.isArray(rawLeave?.data)
+        ? rawLeave.data
+        : Array.isArray(rawLeave?.leaves)
+        ? rawLeave.leaves
+        : Array.isArray(rawLeave)
+        ? rawLeave
+        : [];
+      setLeaves(leaveData);
     } finally {
       setLoading(false);
     }
@@ -217,15 +224,17 @@ export default function OfficialClearancesLedgerModal({
       return false;
     }
 
-    if (sectionFilter !== 'All') {
-      const secName = student.section?.name || '';
-      if (!secName.includes(sectionFilter)) return false;
+    if (sectionFilter && sectionFilter !== 'All') {
+      const rawSec = (student.section?.name || student.section?.code || '').toUpperCase();
+      const targetSec = sectionFilter.toString().toUpperCase().replace(/^SECTION\s*/i, '').replace(/^CSE-/i, '').trim();
+      const studentSecClean = rawSec.replace(/^SECTION\s*/i, '').replace(/^CSE-/i, '').trim();
+      if (studentSecClean !== targetSec && !rawSec.includes(targetSec)) return false;
     }
 
-    if (semesterFilter !== 'All Semesters') {
-      const semNumber = parseInt(semesterFilter.replace(/\D/g, ''), 10);
+    if (semesterFilter && semesterFilter !== 'All Semesters') {
+      const targetSem = parseInt(semesterFilter.toString().replace(/\D/g, ''), 10);
       const studentSem = student.section?.semester || student.semester || 5;
-      if (Number(semNumber) !== Number(studentSem)) return false;
+      if (Number(targetSem) !== Number(studentSem)) return false;
     }
 
     return true;
@@ -245,7 +254,8 @@ export default function OfficialClearancesLedgerModal({
     }
 
     if (reportList.length === 0) {
-      reportList = defaultConsiderations;
+      alert('No approved records found to generate print report.');
+      return;
     }
 
     const now = new Date();
@@ -546,36 +556,47 @@ export default function OfficialClearancesLedgerModal({
 
           {/* Filters: Semester, Section, Search */}
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1 text-xs text-slate-600">
-              <span className="font-semibold">select semester:</span>
-              <select
-                value={semesterFilter}
-                onChange={(e) => setSemesterFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="All Semesters">All Semesters</option>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                  <option key={s} value={`Semester ${s}`}>
-                    Semester {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isTgView ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold">
+                <span>Assigned Scope:</span>
+                <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white text-[11px] font-black">
+                  Semester {assignedSemester || 5} • Section {assignedSection || 'B'}
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1 text-xs text-slate-600">
+                  <span className="font-semibold">select semester:</span>
+                  <select
+                    value={semesterFilter}
+                    onChange={(e) => setSemesterFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    <option value="All Semesters">All Semesters</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                      <option key={s} value={`Semester ${s}`}>
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="flex items-center gap-1 text-xs text-slate-600">
-              <span className="font-semibold">section:</span>
-              <select
-                value={sectionFilter}
-                onChange={(e) => setSectionFilter(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="All">All</option>
-                <option value="A">Section A</option>
-                <option value="B">Section B</option>
-                <option value="C">Section C</option>
-                <option value="D">Section D</option>
-              </select>
-            </div>
+                <div className="flex items-center gap-1 text-xs text-slate-600">
+                  <span className="font-semibold">section:</span>
+                  <select
+                    value={sectionFilter}
+                    onChange={(e) => setSectionFilter(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    <option value="All">All</option>
+                    <option value="A">Section A</option>
+                    <option value="B">Section B</option>
+                    <option value="C">Section C</option>
+                    <option value="D">Section D</option>
+                  </select>
+                </div>
+              </>
+            )}
 
             <div className="relative">
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -771,20 +792,26 @@ export default function OfficialClearancesLedgerModal({
                   <label className="block text-xs font-bold text-slate-700 mb-1.5">
                     Target Semester:
                   </label>
-                  <select
-                    value={targetPrintSemester}
-                    onChange={(e) => setTargetPrintSemester(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-all cursor-pointer"
-                  >
-                    <option value="All Semesters (Comprehensive Ledger)">
-                      All Semesters (Comprehensive Ledger)
-                    </option>
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
-                      <option key={s} value={`Semester ${s}`}>
-                        Semester {s}
+                  {isTgView ? (
+                    <div className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-800">
+                      Semester {assignedSemester || 5} (TG Assigned Scope)
+                    </div>
+                  ) : (
+                    <select
+                      value={targetPrintSemester}
+                      onChange={(e) => setTargetPrintSemester(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-600 focus:outline-none transition-all cursor-pointer"
+                    >
+                      <option value="All Semesters (Comprehensive Ledger)">
+                        All Semesters (Comprehensive Ledger)
                       </option>
-                    ))}
-                  </select>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => (
+                        <option key={s} value={`Semester ${s}`}>
+                          Semester {s}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 {/* Footer Buttons: Cancel & Generate PDF / Print */}

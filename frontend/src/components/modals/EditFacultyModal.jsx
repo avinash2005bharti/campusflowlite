@@ -209,7 +209,7 @@ export default function EditFacultyModal({ teacher, onClose, onSuccess }) {
               </span>
             </label>
             <p className="text-[11px] text-slate-400 ml-6.5 mt-0.5">
-              Enables mentee section allocation and first-tier approval governance.
+              Enables student section allocation and first-tier approval governance.
             </p>
           </div>
 
@@ -219,22 +219,32 @@ export default function EditFacultyModal({ teacher, onClose, onSuccess }) {
               type="button"
               onClick={onClose}
               disabled={submitting}
-              className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer transition-colors"
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#334155',
+                borderColor: '#CBD5E1',
+              }}
+              className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold hover:bg-slate-50 border cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-60"
+              style={{
+                backgroundColor: '#1D4ED8',
+                color: '#ffffff',
+                borderColor: '#1D4ED8',
+              }}
+              className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black text-white shadow-xs flex items-center gap-2 cursor-pointer transition-all disabled:opacity-60 border hover:bg-blue-700"
             >
               {submitting ? (
                 <>
-                  <Loader2 size={15} className="animate-spin" />
-                  <span>Saving...</span>
+                  <Loader2 size={15} className="animate-spin text-white" />
+                  <span className="text-white">Saving...</span>
                 </>
               ) : (
-                <span>Save Changes</span>
+                <span className="text-white">Save Changes</span>
               )}
             </button>
           </div>

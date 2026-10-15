@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema(
       fileId: String,
       url: String,
     },
+    resetPasswordOtp: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
     lastLoginAt: {
       type: Date,
     },

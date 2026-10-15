@@ -8,12 +8,12 @@ export const getDashboardSummary = asyncHandler(async (req, res) => {
 });
 
 export const getConsiderationsReport = asyncHandler(async (req, res) => {
-  const result = await reportsService.getConsiderationsReport(req.query);
+  const result = await reportsService.getConsiderationsReport(req.query, req.user);
   return sendSuccess(res, result.requests, result.meta);
 });
 
 export const getLeavesReport = asyncHandler(async (req, res) => {
-  const result = await reportsService.getLeavesReport(req.query);
+  const result = await reportsService.getLeavesReport(req.query, req.user);
   return sendSuccess(res, result.leaves, result.meta);
 });
 
@@ -25,10 +25,15 @@ export const exportLeaves = asyncHandler(async (req, res) => {
   return reportsService.exportLeavesToExcel(req.query, res);
 });
 
+export const exportFaculty = asyncHandler(async (req, res) => {
+  return reportsService.exportFacultyToExcel(res);
+});
+
 export default {
   getDashboardSummary,
   getConsiderationsReport,
   getLeavesReport,
   exportConsiderations,
   exportLeaves,
+  exportFaculty,
 };

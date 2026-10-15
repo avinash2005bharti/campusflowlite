@@ -51,6 +51,21 @@ export const reportApi = {
     window.URL.revokeObjectURL(url);
   },
 
+  downloadFacultyExcel: async () => {
+    const res = await apiClient.get('/reports/faculty/export', {
+      responseType: 'blob',
+    });
+    const blob = res instanceof Blob ? res : (res?.data instanceof Blob ? res.data : new Blob([res?.data || res]));
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `faculty_directory_${Date.now()}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
   getExportConsiderationsUrl: (params = {}) => {
     const query = new URLSearchParams(params).toString();
     return `/api/v1/reports/considerations/export?${query}`;
@@ -73,6 +88,10 @@ export const mentorshipApi = {
 
   createGroup: async (data) => {
     return apiClient.post('/mentor-groups', data);
+  },
+
+  updateGroup: async (groupId, data) => {
+    return apiClient.put(`/mentor-groups/${groupId}`, data);
   },
 
   updateStudents: async (groupId, data) => {
@@ -171,6 +190,14 @@ export const uploadApi = {
     return apiClient.get('/uploads/auth');
   },
 
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/uploads', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
   verify: async (fileId) => {
     return apiClient.post('/uploads/verify', { fileId });
   },
@@ -198,6 +225,20 @@ export const notificationApi = {
   },
 };
 
+export const noticeApi = {
+  getNotices: async (params = {}) => {
+    return apiClient.get('/notices', { params });
+  },
+
+  createNotice: async (data) => {
+    return apiClient.post('/notices', data);
+  },
+
+  deleteNotice: async (id) => {
+    return apiClient.delete(`/notices/${id}`);
+  },
+};
+
 export default {
   dashboardApi,
   reportApi,
@@ -205,4 +246,5 @@ export default {
   masterDataApi,
   uploadApi,
   notificationApi,
+  noticeApi,
 };

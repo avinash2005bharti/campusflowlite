@@ -11,53 +11,44 @@ import ApiError from '../../utils/ApiError.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 import { isEndDateGteStartDate, rangesOverlap } from '../../utils/dates.js';
 import { emitNotification, emitRequestUpdated, emitQueueChanged } from '../../sockets/emitters.js';
+import { sendStatusNotificationEmail } from '../../utils/sendEmail.js';
 
 export const resolveStudentTG = async (student) => {
+  // 1. If student already has a mentor group, ensure it matches their section
   if (student.mentorGroup) {
     const group = await MentorGroup.findById(student.mentorGroup);
     if (group && group.isActive) {
-      return group.tg;
-    }
-  }
-
-  // 1. Peer in same section
-  if (student.section) {
-    const peer = await Student.findOne({
-      section: student.section,
-      mentorGroup: { $ne: null },
-      _id: { $ne: student._id },
-    });
-    if (peer?.mentorGroup) {
-      const group = await MentorGroup.findById(peer.mentorGroup);
-      if (group && group.isActive) {
-        student.mentorGroup = group._id;
-        await student.save();
-        if (!group.students.some((sId) => sId.toString() === student._id.toString())) {
-          group.students.push(student._id);
-          await group.save();
-        }
+      const matchesSection = !group.section || !student.section || group.section.toString() === student.section.toString();
+      if (matchesSection) {
         return group.tg;
       }
     }
   }
 
-  // 2. Department active mentor group
-  if (student.department) {
-    const deptGroup = await MentorGroup.findOne({
-      department: student.department,
+  // 2. Find active MentorGroup specifically assigned to student's section
+  if (student.section) {
+    let sectionGroup = await MentorGroup.findOne({
+      section: student.section,
       isActive: true,
     });
-    if (deptGroup) {
-      student.mentorGroup = deptGroup._id;
-      await student.save();
-      if (!deptGroup.students.some((sId) => sId.toString() === student._id.toString())) {
-        deptGroup.students.push(student._id);
-        await deptGroup.save();
+
+    if (!sectionGroup) {
+      sectionGroup = await MentorGroup.findOne({ section: student.section });
+      if (sectionGroup) {
+        sectionGroup.isActive = true;
+        await sectionGroup.save();
       }
-      return deptGroup.tg;
+    }
+
+    if (sectionGroup) {
+      student.mentorGroup = sectionGroup._id;
+      await student.save();
+      await MentorGroup.findByIdAndUpdate(sectionGroup._id, { $addToSet: { students: student._id } });
+      return sectionGroup.tg;
     }
   }
 
+  // DO NOT leak to another section's TG! If no TG is appointed, return null (direct HOD review)
   return null;
 };
 
@@ -90,77 +81,257 @@ export const createConsideration = async (user, data) => {
     }
   }
 
-  // Derive TG from student's active MentorGroup or auto-resolve
-  const tgTeacherId = await resolveStudentTG(student);
+  const isGroup = Boolean(data.isGroup) && Array.isArray(data.groupMembers) && data.groupMembers.length > 0;
+  const timeFrom = data.timeFrom || '10:50 AM';
+  const timeTo = data.timeTo || '01:20 PM';
+  const periodTiming = data.periodTiming || `${timeFrom} - ${timeTo}`;
 
-  const now = new Date();
-  const request = await ConsiderationRequest.create({
-    student: student._id,
-    tg: tgTeacherId,
-    eventTitle: data.eventTitle,
-    eventType: data.eventType,
-    organizer: data.organizer,
-    venue: data.venue,
-    startDate: data.startDate,
-    endDate: data.endDate,
-    requestedPeriods: data.requestedPeriods,
-    selectedPeriods: data.selectedPeriods || [],
-    periodTiming: data.periodTiming || '',
-    description: data.description,
-    attachments: data.attachments || [],
-    status: 'PENDING',
-    history: [
-      {
-        status: 'PENDING',
-        actor: user._id,
-        actorRole: 'STUDENT',
-        remarks: 'Application submitted',
-        at: now,
-        via: 'MANUAL',
-      },
-    ],
-  });
+  if (!isGroup) {
+    // Derive TG from student's active MentorGroup or auto-resolve
+    const tgTeacherId = await resolveStudentTG(student);
 
-  // Audit log
-  await AuditLog.create({
-    actor: user._id,
-    action: 'CREATE_CONSIDERATION',
-    entityType: 'ConsiderationRequest',
-    entityId: request._id,
-    after: request.toObject(),
-  });
+    const now = new Date();
+    const request = await ConsiderationRequest.create({
+      student: student._id,
+      tg: tgTeacherId,
+      eventTitle: data.eventTitle,
+      eventType: data.eventType,
+      organizer: data.organizer,
+      venue: data.venue,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      timeFrom,
+      timeTo,
+      isGroup: false,
+      requestedPeriods: data.requestedPeriods,
+      selectedPeriods: data.selectedPeriods || [],
+      periodTiming,
+      description: data.description,
+      attachments: data.attachments || [],
+      status: 'PENDING',
+      history: [
+        {
+          status: 'PENDING',
+          actor: user._id,
+          actorRole: 'STUDENT',
+          remarks: 'Application submitted',
+          at: now,
+          via: 'MANUAL',
+        },
+      ],
+    });
 
-  // Notifications
-  if (tgTeacherId) {
-    const tgTeacher = await Teacher.findById(tgTeacherId).populate('user');
-    if (tgTeacher?.user) {
-      const notif = await Notification.create({
-        user: tgTeacher.user._id,
-        title: 'New Consideration Request',
-        message: `${user.name} submitted an attendance consideration request for "${data.eventTitle}".`,
-        type: 'CONSIDERATION',
-        link: `/tg/considerations/${request._id}`,
-      });
-      emitNotification(tgTeacher.user._id.toString(), notif);
-      emitQueueChanged('TG', 'CONSIDERATION');
+    // Audit log
+    await AuditLog.create({
+      actor: user._id,
+      action: 'CREATE_CONSIDERATION',
+      entityType: 'ConsiderationRequest',
+      entityId: request._id,
+      after: request.toObject(),
+    });
+
+    // Notifications
+    if (tgTeacherId) {
+      const tgTeacher = await Teacher.findById(tgTeacherId).populate('user');
+      if (tgTeacher?.user) {
+        const notif = await Notification.create({
+          user: tgTeacher.user._id,
+          title: 'New Consideration Request',
+          message: `${user.name} submitted an attendance consideration request for "${data.eventTitle}".`,
+          type: 'CONSIDERATION',
+          link: `/tg/considerations/${request._id}`,
+        });
+        emitNotification(tgTeacher.user._id.toString(), notif);
+        emitQueueChanged('TG', 'CONSIDERATION');
+      }
+    } else {
+      // If no TG assigned, notify HODs directly
+      const hodUsers = await User.find({ role: { $in: ['HOD', 'ADMIN'] }, isActive: true });
+      for (const hod of hodUsers) {
+        const notif = await Notification.create({
+          user: hod._id,
+          title: 'New Consideration Request (No TG Assigned)',
+          message: `${user.name} submitted a consideration request requiring direct review.`,
+          type: 'CONSIDERATION',
+          link: `/hod/considerations/${request._id}`,
+        });
+        emitNotification(hod._id.toString(), notif);
+      }
     }
-  } else {
-    // If no TG assigned, notify HODs
-    const hodUsers = await User.find({ role: { $in: ['HOD', 'ADMIN'] }, isActive: true });
-    for (const hod of hodUsers) {
-      const notif = await Notification.create({
-        user: hod._id,
-        title: 'New Consideration Request (No TG Assigned)',
-        message: `${user.name} submitted a consideration request requiring direct review.`,
-        type: 'CONSIDERATION',
-        link: `/hod/considerations/${request._id}`,
-      });
-      emitNotification(hod._id.toString(), notif);
-    }
+
+    // Always notify HOD queue so HOD Dashboard counter updates in real time
     emitQueueChanged('HOD', 'CONSIDERATION');
+
+    return request;
   }
 
-  return request;
+  // GROUP CONSIDERATION WORKFLOW
+  const rawMemberIds = [student._id.toString(), ...(data.groupMembers || []).map((id) => id.toString())];
+  const uniqueMemberIds = [...new Set(rawMemberIds)];
+  const groupId = `grp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date();
+
+  const memberStudents = await Student.find({ _id: { $in: uniqueMemberIds } })
+    .populate('user', 'name email phone')
+    .populate('section', 'name code semester year');
+
+  // Group members into section buckets (one request per section / TG)
+  const sectionBuckets = new Map();
+
+  for (const mStudent of memberStudents) {
+    const isLeader = mStudent._id.toString() === student._id.toString();
+
+    // Check duplicate active request
+    const activeDup = await ConsiderationRequest.findOne({
+      $or: [
+        { student: mStudent._id },
+        { sectionStudents: mStudent._id },
+        { groupMembers: mStudent._id },
+      ],
+      eventTitle: { $regex: new RegExp(`^${data.eventTitle.trim()}$`, 'i') },
+      status: { $in: ['PENDING', 'RECOMMENDED_BY_TG', 'APPROVED_BY_HOD'] },
+    });
+    if (activeDup && rangesOverlap(data.startDate, data.endDate, activeDup.startDate, activeDup.endDate)) {
+      if (isLeader) {
+        throw ApiError.conflict(
+          `An active consideration request for event '${data.eventTitle}' already exists in an overlapping date range`
+        );
+      }
+      continue;
+    }
+
+    const mTGTeacherId = await resolveStudentTG(mStudent);
+    const bucketKey = mTGTeacherId
+      ? mTGTeacherId.toString()
+      : mStudent.section?._id
+      ? mStudent.section._id.toString()
+      : 'NO_TG';
+
+    if (!sectionBuckets.has(bucketKey)) {
+      sectionBuckets.set(bucketKey, {
+        tgTeacherId: mTGTeacherId,
+        sectionId: mStudent.section?._id,
+        sectionName: mStudent.section?.name || mStudent.section?.code || 'General',
+        semester: mStudent.section?.semester || mStudent.semester || 5,
+        students: [],
+        hasLeader: false,
+      });
+    }
+
+    const bucket = sectionBuckets.get(bucketKey);
+    bucket.students.push(mStudent);
+    if (isLeader) {
+      bucket.hasLeader = true;
+    }
+  }
+
+  let leaderRequest = null;
+  const createdRequests = [];
+
+  // Create exactly ONE request per section/TG bucket!
+  for (const [bucketKey, bucket] of sectionBuckets.entries()) {
+    const isMasterBucket = bucket.hasLeader || (!leaderRequest && createdRequests.length === 0);
+    const sectionRepresentative = bucket.hasLeader
+      ? student
+      : bucket.students[0];
+
+    const sectionMemberIds = bucket.students.map((s) => s._id);
+    const sectionStudentNames = bucket.students.map((s) => s.user?.name || s.rollNumber).join(', ');
+
+    const secRequest = await ConsiderationRequest.create({
+      student: sectionRepresentative._id,
+      tg: bucket.tgTeacherId,
+      eventTitle: data.eventTitle,
+      eventType: data.eventType,
+      organizer: data.organizer,
+      venue: data.venue,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      timeFrom,
+      timeTo,
+      isGroup: true,
+      isGroupMaster: isMasterBucket,
+      groupId,
+      groupLeader: student._id,
+      groupMembers: uniqueMemberIds,
+      sectionStudents: sectionMemberIds,
+      requestedPeriods: data.requestedPeriods,
+      selectedPeriods: data.selectedPeriods || [],
+      periodTiming,
+      description: data.description,
+      attachments: data.attachments || [],
+      status: 'PENDING',
+      history: [
+        {
+          status: 'PENDING',
+          actor: user._id,
+          actorRole: 'STUDENT',
+          remarks: `Group consideration (${bucket.students.length} student(s) from ${bucket.sectionName}) submitted by team lead ${user.name}`,
+          at: now,
+          via: 'MANUAL',
+        },
+      ],
+    });
+
+    createdRequests.push(secRequest);
+    if (isMasterBucket) {
+      leaderRequest = secRequest;
+    }
+
+    // Send a SINGLE notification to the TG of this section!
+    if (bucket.tgTeacherId) {
+      const tgTeacher = await Teacher.findById(bucket.tgTeacherId).populate('user');
+      if (tgTeacher?.user) {
+        const notif = await Notification.create({
+          user: tgTeacher.user._id,
+          title: 'New Group Consideration Request',
+          message: `${user.name} submitted a group consideration request for "${data.eventTitle}" with ${bucket.students.length} student(s) from your section (${sectionStudentNames}).`,
+          type: 'CONSIDERATION',
+          link: `/tg/considerations/${secRequest._id}`,
+        });
+        emitNotification(tgTeacher.user._id.toString(), notif);
+      }
+    }
+  }
+
+  // Ensure there is always a designated master request
+  if (!leaderRequest && createdRequests.length > 0) {
+    leaderRequest = createdRequests[0];
+    leaderRequest.isGroupMaster = true;
+    await leaderRequest.save();
+  }
+
+  // Notify member students (once each)
+  for (const mStudent of memberStudents) {
+    if (mStudent._id.toString() !== student._id.toString() && mStudent.user?._id) {
+      const memNotif = await Notification.create({
+        user: mStudent.user._id,
+        title: 'Group Attendance Consideration Request',
+        message: `${user.name} included you in a group consideration request for "${data.eventTitle}".`,
+        type: 'CONSIDERATION',
+        link: `/student/considerations`,
+      });
+      emitNotification(mStudent.user._id.toString(), memNotif);
+    }
+  }
+
+  emitQueueChanged('TG', 'CONSIDERATION');
+  emitQueueChanged('HOD', 'CONSIDERATION');
+
+  // Notify HOD once about the new group submission
+  const hodUsers = await User.find({ role: { $in: ['HOD', 'ADMIN'] }, isActive: true });
+  for (const hod of hodUsers) {
+    const notif = await Notification.create({
+      user: hod._id,
+      title: 'New Group Consideration Request',
+      message: `${user.name} submitted a group consideration request for "${data.eventTitle}" (${uniqueMemberIds.length} students across ${sectionBuckets.size} section(s)).`,
+      type: 'CONSIDERATION',
+      link: `/hod/considerations`,
+    });
+    emitNotification(hod._id.toString(), notif);
+  }
+
+  return leaderRequest || createdRequests[0];
 };
 
 export const getStudentConsiderations = async (userId, query) => {
@@ -170,24 +341,66 @@ export const getStudentConsiderations = async (userId, query) => {
   }
 
   const { page, limit, skip } = parsePagination(query);
-  const filter = { student: student._id };
+  const filter = {
+    $or: [
+      { student: student._id },
+      { sectionStudents: student._id },
+      { groupMembers: student._id },
+    ],
+  };
 
   if (query.status) {
     filter.status = query.status.toUpperCase();
   }
 
-  const [requests, total] = await Promise.all([
+  const [rawRequests, total] = await Promise.all([
     ConsiderationRequest.find(filter)
       .populate('tg', 'designation employeeId')
+      .populate({
+        path: 'student',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'groupMembers',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'sectionStudents',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'groupLeader',
+        populate: [{ path: 'user', select: 'name email' }],
+      })
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 }),
     ConsiderationRequest.countDocuments(filter),
   ]);
 
+  // Deduplicate by groupId so each group consideration appears once
+  const seenGroupIds = new Set();
+  const requests = [];
+  for (const req of rawRequests) {
+    if (req.isGroup && req.groupId) {
+      if (seenGroupIds.has(req.groupId)) continue;
+      seenGroupIds.add(req.groupId);
+    }
+    requests.push(req);
+  }
+
   return {
     requests,
-    meta: buildPaginationMeta(total, page, limit),
+    meta: buildPaginationMeta(requests.length, page, limit),
   };
 };
 
@@ -197,7 +410,28 @@ export const getTGQueue = async (user, query) => {
   }
 
   const { page, limit, skip } = parsePagination(query);
-  const filter = { tg: user.teacherId };
+
+  // Scope to the students of this TG's assigned sections/groups
+  const myGroups = await MentorGroup.find({ tg: user.teacherId, isActive: true });
+  const mySectionIds = myGroups.map((g) => g.section).filter(Boolean);
+  const myExplicitStudentIds = myGroups.flatMap((g) => g.students || []);
+
+  const myStudents = await Student.find({
+    $or: [
+      { _id: { $in: myExplicitStudentIds } },
+      { mentorGroup: { $in: myGroups.map((g) => g._id) } },
+      ...(mySectionIds.length > 0 ? [{ section: { $in: mySectionIds } }] : []),
+    ],
+  }).select('_id');
+  const myStudentIds = myStudents.map((s) => s._id);
+
+  const filter = {
+    $or: [
+      { tg: user.teacherId },
+      { student: { $in: myStudentIds } },
+      { sectionStudents: { $in: myStudentIds } },
+    ],
+  };
 
   if (query.status) {
     filter.status = query.status.toUpperCase();
@@ -211,8 +445,26 @@ export const getTGQueue = async (user, query) => {
         path: 'student',
         populate: [
           { path: 'user', select: 'name email phone' },
-          { path: 'section', select: 'name code' },
+          { path: 'section', select: 'name code year semester' },
         ],
+      })
+      .populate({
+        path: 'groupMembers',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'sectionStudents',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'groupLeader',
+        populate: [{ path: 'user', select: 'name email' }],
       })
       .skip(skip)
       .limit(limit)
@@ -230,14 +482,23 @@ export const getHODQueue = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
   const conditions = [];
 
+  // For group considerations in HOD queue: only include master request so HOD sees a single request
+  conditions.push({
+    $or: [
+      { isGroup: false },
+      { isGroup: { $exists: false } },
+      { isGroupMaster: true },
+    ],
+  });
+
   if (query.all === 'true' || query.status === 'ALL') {
     // Return all department records without restricting to action queue
   } else if (query.status === 'ACTION_NEEDED' || (!query.all && !query.status)) {
     conditions.push({
       $or: [
         { status: 'RECOMMENDED_BY_TG' },
-        { status: 'PENDING', escalated: true },
-        { status: 'PENDING', tg: null },
+        { status: 'PENDING' },
+        { status: 'APPLIED' },
       ],
     });
   } else if (query.status === 'APPROVED' || query.status === 'APPROVED_BY_HOD') {
@@ -278,6 +539,25 @@ export const getHODQueue = async (query = {}, user = null) => {
         ],
       })
       .populate({
+        path: 'groupMembers',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+          { path: 'department', select: 'name code' },
+        ],
+      })
+      .populate({
+        path: 'sectionStudents',
+        populate: [
+          { path: 'user', select: 'name email phone' },
+          { path: 'section', select: 'name code year semester' },
+        ],
+      })
+      .populate({
+        path: 'groupLeader',
+        populate: [{ path: 'user', select: 'name email' }],
+      })
+      .populate({
         path: 'tg',
         populate: { path: 'user', select: 'name email phone' },
       })
@@ -305,6 +585,28 @@ export const getConsiderationById = async (id, user) => {
       ],
     })
     .populate({
+      path: 'groupMembers',
+      populate: [
+        { path: 'user', select: 'name email phone profileImage' },
+        { path: 'section', select: 'name code year semester' },
+        { path: 'department', select: 'name code' },
+      ],
+    })
+    .populate({
+      path: 'sectionStudents',
+      populate: [
+        { path: 'user', select: 'name email phone profileImage' },
+        { path: 'section', select: 'name code year semester' },
+      ],
+    })
+    .populate({
+      path: 'groupLeader',
+      populate: [
+        { path: 'user', select: 'name email' },
+        { path: 'section', select: 'name code year semester' },
+      ],
+    })
+    .populate({
       path: 'tg',
       populate: { path: 'user', select: 'name email phone' },
     })
@@ -317,8 +619,14 @@ export const getConsiderationById = async (id, user) => {
   }
 
   // Authorization check
-  const isOwner = user.role === 'STUDENT' && request.student?.user?._id?.toString() === user.id;
-  const isTG = user.isTG && request.tg?._id?.toString() === user.teacherId;
+  const studentUserId = request.student?.user?._id?.toString() || request.student?.user?.toString();
+  const groupMemberUserIds = (request.groupMembers || [])
+    .map((m) => m?.user?._id?.toString() || m?.user?.toString())
+    .filter(Boolean);
+  const isOwner =
+    user.role === 'STUDENT' &&
+    (studentUserId === user.id || groupMemberUserIds.includes(user.id));
+  const isTG = user.isTG;
   const isHOD = user.role === 'HOD';
   const isAdmin = user.role === 'ADMIN';
 
@@ -429,17 +737,62 @@ export const tgReview = async (id, user, { decision, remarks }) => {
     after: request.toObject(),
   });
 
-  // Notify student
-  const studentUser = request.student?.user;
-  if (studentUser) {
-    const notif = await Notification.create({
-      user: studentUser,
-      title: decision === 'RECOMMEND' ? 'Consideration Recommended' : 'Consideration Rejected by TG',
-      message: `Your consideration request for "${request.eventTitle}" was ${newStatus.toLowerCase().replace(/_/g, ' ')}.`,
-      type: 'CONSIDERATION',
-      link: `/student/considerations/${request._id}`,
-    });
-    emitNotification(studentUser.toString(), notif);
+  // Notify student(s)
+  const sectionStudentIds = (request.isGroup && request.sectionStudents?.length)
+    ? request.sectionStudents
+    : [request.student?._id || request.student];
+
+  const studentsToNotify = await Student.find({ _id: { $in: sectionStudentIds } }).populate('user');
+  for (const s of studentsToNotify) {
+    const sUser = s.user;
+    if (sUser?._id) {
+      const notif = await Notification.create({
+        user: sUser._id,
+        title: decision === 'RECOMMEND' ? 'Consideration Recommended' : 'Consideration Rejected by TG',
+        message: `Your consideration request for "${request.eventTitle}" was ${newStatus.toLowerCase().replace(/_/g, ' ')}.`,
+        type: 'CONSIDERATION',
+        link: `/student/considerations`,
+      });
+      emitNotification(sUser._id.toString(), notif);
+
+      // Send email notification to student
+      try {
+        if (sUser.email) {
+          sendStatusNotificationEmail(
+            sUser.email,
+            sUser.name,
+            'Attendance Consideration Request',
+            newStatus.replace(/_/g, ' '),
+            remarks || ''
+          ).catch((err) => console.error('[Email Notification Error]:', err.message));
+        }
+      } catch (e) {
+        console.error('[Email Dispatch Failed]:', e.message);
+      }
+
+      emitRequestUpdated([`user_${sUser._id}`], {
+        kind: 'CONSIDERATION',
+        id: request._id,
+        status: newStatus,
+      });
+    }
+  }
+
+  // If this is a group section request and recommended, update the master request if still PENDING
+  if (request.isGroup && request.groupId && decision === 'RECOMMEND' && !request.isGroupMaster) {
+    const masterReq = await ConsiderationRequest.findOne({ groupId: request.groupId, isGroupMaster: true });
+    if (masterReq && masterReq.status === 'PENDING') {
+      masterReq.status = 'RECOMMENDED_BY_TG';
+      masterReq.history.push({
+        status: 'RECOMMENDED_BY_TG',
+        actor: user._id,
+        actorRole: 'TG',
+        remarks: `Recommended by TG for section students`,
+        at: now,
+        via: 'MANUAL',
+      });
+      await masterReq.save();
+    }
   }
 
   // If recommended, notify HOD
@@ -459,7 +812,7 @@ export const tgReview = async (id, user, { decision, remarks }) => {
   }
 
   emitQueueChanged('TG', 'CONSIDERATION');
-  emitRequestUpdated([`user_${studentUser}`, 'role_HOD', `tg_${user.teacherId}`], {
+  emitRequestUpdated(['role_HOD', `tg_${user.teacherId}`], {
     kind: 'CONSIDERATION',
     id: request._id,
     status: newStatus,
@@ -484,21 +837,22 @@ export const hodReview = async (id, user, { decision, remarks, approvedPeriods }
     throw ApiError.forbidden('You are only authorized to review requests from your department');
   }
 
-  // Allowed transitions: status must be RECOMMENDED_BY_TG, OR request must be escalated, OR unassigned TG pending
+  // Allowed transitions: HOD can review RECOMMENDED_BY_TG, PENDING (direct approval/override), APPLIED, or escalated
   const isEligible =
     request.status === 'RECOMMENDED_BY_TG' ||
-    (request.status === 'PENDING' && (request.escalated === true || !request.tg));
+    request.status === 'PENDING' ||
+    request.status === 'APPLIED' ||
+    request.escalated === true ||
+    !request.tg;
   if (!isEligible) {
     throw ApiError.invalidStateTransition(
-      `HOD review requires status 'RECOMMENDED_BY_TG' or an escalated/unassigned pending request. Current status: '${request.status}', escalated: ${request.escalated}`
+      `HOD review cannot be performed on a request in '${request.status}' state`
     );
   }
 
   if (decision === 'APPROVE') {
     if (!approvedPeriods || approvedPeriods < 1 || approvedPeriods > request.requestedPeriods) {
-      throw ApiError.badRequest(
-        `Approved periods must be between 1 and requested periods (${request.requestedPeriods})`
-      );
+      approvedPeriods = request.requestedPeriods || 1;
     }
   }
 
@@ -523,6 +877,29 @@ export const hodReview = async (id, user, { decision, remarks, approvedPeriods }
   });
   await request.save();
 
+  // If this is a group request, synchronize status to all linked section requests with the same groupId!
+  if (request.isGroup && request.groupId) {
+    await ConsiderationRequest.updateMany(
+      { groupId: request.groupId, _id: { $ne: request._id } },
+      {
+        $set: {
+          status: newStatus,
+          hodReview: request.hodReview,
+        },
+        $push: {
+          history: {
+            status: newStatus,
+            actor: user._id,
+            actorRole: user.role,
+            remarks: remarks || (decision === 'APPROVE' ? `Approved with ${approvedPeriods} periods (Group)` : 'Rejected by HOD (Group)'),
+            at: now,
+            via: 'MANUAL',
+          },
+        },
+      }
+    );
+  }
+
   await AuditLog.create({
     actor: user._id,
     action: `HOD_${decision}_CONSIDERATION`,
@@ -532,40 +909,73 @@ export const hodReview = async (id, user, { decision, remarks, approvedPeriods }
     after: request.toObject(),
   });
 
-  // Notify student
-  const studentUser = request.student?.user;
-  if (studentUser) {
-    const notif = await Notification.create({
-      user: studentUser,
-      title: decision === 'APPROVE' ? 'Consideration Approved by HOD!' : 'Consideration Rejected by HOD',
-      message: `Your request for "${request.eventTitle}" was ${newStatus.toLowerCase().replace(/_/g, ' ')}${decision === 'APPROVE' ? ` (${approvedPeriods} periods credited)` : ''}.`,
-      type: 'CONSIDERATION',
-      link: `/student/considerations/${request._id}`,
-    });
-    emitNotification(studentUser.toString(), notif);
+  // Notify ALL participating group members
+  const memberStudentIds = (request.isGroup && request.groupMembers?.length)
+    ? request.groupMembers
+    : [request.student?._id || request.student];
+
+  const studentsToNotify = await Student.find({ _id: { $in: memberStudentIds } }).populate('user');
+  for (const s of studentsToNotify) {
+    const sUser = s.user;
+    if (sUser?._id) {
+      const notif = await Notification.create({
+        user: sUser._id,
+        title: decision === 'APPROVE' ? 'Consideration Approved by HOD!' : 'Consideration Rejected by HOD',
+        message: `Your${request.isGroup ? ' group' : ''} consideration request for "${request.eventTitle}" was ${newStatus.toLowerCase().replace(/_/g, ' ')}${decision === 'APPROVE' ? ` (${approvedPeriods} periods credited)` : ''}.`,
+        type: 'CONSIDERATION',
+        link: `/student/considerations`,
+      });
+      emitNotification(sUser._id.toString(), notif);
+
+      // Send email notification to student
+      try {
+        if (sUser.email) {
+          sendStatusNotificationEmail(
+            sUser.email,
+            sUser.name,
+            `${request.isGroup ? 'Group ' : ''}Attendance Consideration Request`,
+            newStatus.replace(/_/g, ' '),
+            remarks || ''
+          ).catch((err) => console.error('[Email Notification Error]:', err.message));
+        }
+      } catch (e) {
+        console.error('[Email Dispatch Failed]:', e.message);
+      }
+
+      emitRequestUpdated([`user_${sUser._id}`], {
+        kind: 'CONSIDERATION',
+        id: request._id,
+        status: newStatus,
+      });
+    }
   }
 
-  // Notify TG
-  if (request.tg) {
-    const tgTeacher = await Teacher.findById(request.tg).populate('user');
+  // Notify all TGs involved across all section requests in this group
+  const allGroupTgIds = (request.isGroup && request.groupId)
+    ? (await ConsiderationRequest.find({ groupId: request.groupId }).distinct('tg')).filter(Boolean)
+    : (request.tg ? [request.tg] : []);
+
+  for (const tgId of allGroupTgIds) {
+    const tgTeacher = await Teacher.findById(tgId).populate('user');
     if (tgTeacher?.user) {
       const notif = await Notification.create({
         user: tgTeacher.user._id,
         title: `HOD Decision: Consideration ${decision}`,
         message: `HOD completed final review on "${request.eventTitle}" (${newStatus}).`,
         type: 'CONSIDERATION',
-        link: `/tg/considerations/${request._id}`,
+        link: `/tg/considerations`,
       });
       emitNotification(tgTeacher.user._id.toString(), notif);
+      emitRequestUpdated([`tg_${tgId}`], {
+        kind: 'CONSIDERATION',
+        id: request._id,
+        status: newStatus,
+      });
     }
   }
 
   emitQueueChanged('HOD', 'CONSIDERATION');
-  emitRequestUpdated([`user_${studentUser}`, 'role_HOD', ...(request.tg ? [`tg_${request.tg}`] : [])], {
-    kind: 'CONSIDERATION',
-    id: request._id,
-    status: newStatus,
-  });
+  emitQueueChanged('TG', 'CONSIDERATION');
 
   return request;
 };

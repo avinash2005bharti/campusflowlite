@@ -7,7 +7,6 @@ import {
   Mail,
   Phone,
   Edit2,
-  Trash2,
   AlertCircle,
   CheckCircle2,
 } from 'lucide-react';
@@ -15,24 +14,40 @@ import EditStudentModal from '../../components/modals/EditStudentModal.jsx';
 
 export default function TgMyStudents() {
   const { addToast } = useERP();
+  const [cohort, setCohort] = useState(null);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [sectionFilter, setSectionFilter] = useState('All');
   const [editingStudent, setEditingStudent] = useState(null);
 
   const fetchCohort = async () => {
     setLoading(true);
     try {
-      // First try to get from my cohort
+      // First try to get from my assigned cohort
       const cohortRes = await mentorshipApi.getMyCohort().catch(() => null);
-      if (cohortRes?.data?.students?.length) {
-        setStudents(cohortRes.data.students);
-      } else {
-        // Fallback to masterDataApi students list
-        const res = await masterDataApi.getStudents();
-        setStudents(res?.data || []);
+      const cohortData = cohortRes?.data || null;
+
+      if (cohortData) {
+        setCohort(cohortData);
+        if (cohortData.students?.length) {
+          setStudents(cohortData.students);
+          return;
+        }
+
+        // If students array inside cohort doc wasn't populated or was empty, fetch students of this section
+        if (cohortData.section?._id || cohortData.section) {
+          const secId = cohortData.section?._id || cohortData.section;
+          const res = await masterDataApi.getStudents({ section: secId });
+          if (res?.data?.length) {
+            setStudents(res.data);
+            return;
+          }
+        }
       }
+
+      // Fallback to masterDataApi students list if cohort not assigned yet
+      const res = await masterDataApi.getStudents();
+      setStudents(res?.data || []);
     } finally {
       setLoading(false);
     }
@@ -42,19 +57,6 @@ export default function TgMyStudents() {
     fetchCohort();
   }, []);
 
-  const handleDelete = async (student) => {
-    const studentName = student.user?.name || student.rollNumber;
-    if (!window.confirm(`Are you sure you want to remove student ${studentName}?`)) return;
-
-    try {
-      await masterDataApi.deleteStudent(student._id);
-      addToast('Student Removed', `Student ${studentName} was removed.`, 'info');
-      fetchCohort();
-    } catch (err) {
-      addToast('Error', err.message || 'Failed to remove student.', 'danger');
-    }
-  };
-
   const filteredStudents = students.filter((st) => {
     const name = (st.user?.name || '').toLowerCase();
     const roll = (st.rollNumber || '').toLowerCase();
@@ -62,19 +64,12 @@ export default function TgMyStudents() {
     const phone = (st.user?.phone || '').toLowerCase();
     const q = search.toLowerCase().trim();
 
-    const matchesSearch =
-      !q || name.includes(q) || roll.includes(q) || email.includes(q) || phone.includes(q);
-
-    const secName = st.section?.name || '';
-    const matchesSection =
-      sectionFilter === 'All' || secName.includes(sectionFilter);
-
-    return matchesSearch && matchesSection;
+    return !q || name.includes(q) || roll.includes(q) || email.includes(q) || phone.includes(q);
   });
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-10">
-      {/* Top Search & Filter Bar matching screenshot */}
+      {/* Top Search & Read-only Assigned Cohort Indicator */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -87,28 +82,25 @@ export default function TgMyStudents() {
           />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs font-bold text-slate-600">Section:</span>
-          <select
-            value={sectionFilter}
-            onChange={(e) => setSectionFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none"
-          >
-            <option value="All">All Sections</option>
-            <option value="A">Section A</option>
-            <option value="B">Section B</option>
-            <option value="C">Section C</option>
-            <option value="D">Section D</option>
-          </select>
+        {/* Read-only HOD Assigned Section badge (no dropdown) */}
+        <div className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200">
+          <span className="text-xs font-bold text-blue-900">Assigned Cohort:</span>
+          <span className="px-2.5 py-0.5 rounded-md bg-blue-600 text-white text-xs font-black">
+            {cohort?.section?.name
+              ? cohort.section.name
+              : cohort?.section?.code
+              ? `Section ${cohort.section.code.replace('CSE-', '')}`
+              : (cohort?.semester ? `Semester ${cohort.semester}` : 'Assigned Cohort')}
+          </span>
         </div>
       </div>
 
-      {/* Student Cards Grid matching tg functions.png */}
+      {/* Student Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredStudents.length === 0 ? (
           <div className="col-span-full p-12 text-center bg-white rounded-2xl border border-slate-200">
             <Users size={32} className="mx-auto text-slate-300 mb-2" />
-            <h3 className="text-sm font-extrabold text-slate-700">No Mentees Found</h3>
+            <h3 className="text-sm font-extrabold text-slate-700">No Students Found</h3>
             <p className="text-xs text-slate-400 mt-1">
               No students enrolled matching current search criteria.
             </p>
@@ -195,22 +187,14 @@ export default function TgMyStudents() {
                   </div>
                 </div>
 
-                {/* Bottom Actions: Edit & Delete buttons matching screenshot */}
+                {/* Bottom Action: Edit button for student details */}
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                   <button
                     onClick={() => setEditingStudent(st)}
                     className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Edit2 size={13} />
-                    <span>Edit</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleDelete(st)}
-                    className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Trash2 size={13} />
-                    <span>Delete</span>
+                    <span>Edit Details</span>
                   </button>
                 </div>
               </div>

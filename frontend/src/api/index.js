@@ -9,4 +9,5 @@ export {
   masterDataApi,
   uploadApi,
   notificationApi,
+  noticeApi,
 } from './modulesApi.js';

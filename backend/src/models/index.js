@@ -10,6 +10,8 @@ import LeaveApplication from './LeaveApplication.js';
 import Notification from './Notification.js';
 import AuditLog from './AuditLog.js';
 import RefreshToken from './RefreshToken.js';
+import Otp from './Otp.js';
+import Notice from './Notice.js';
 
 export {
   User,
@@ -24,6 +26,8 @@ export {
   Notification,
   AuditLog,
   RefreshToken,
+  Otp,
+  Notice,
 };
 
 export default {
@@ -39,4 +43,5 @@ export default {
   Notification,
   AuditLog,
   RefreshToken,
+  Otp,
 };

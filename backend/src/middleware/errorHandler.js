@@ -11,11 +11,12 @@ export const errorHandler = (err, req, res, next) => {
   if (err.name === 'ZodError') {
     statusCode = 400;
     code = 'VALIDATION_ERROR';
-    message = 'Validation failed';
-    details = err.errors ? err.errors.map((e) => ({
-      path: e.path.join('.'),
+    const issues = err.issues || err.errors || [];
+    message = issues[0]?.message || 'Validation failed';
+    details = issues.map((e) => ({
+      path: Array.isArray(e.path) ? e.path.join('.') : String(e.path || ''),
       message: e.message,
-    })) : [];
+    }));
   }
 
   // Handle Mongoose validation errors

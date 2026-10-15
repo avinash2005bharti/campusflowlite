@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Student from '../../models/Student.js';
 import User from '../../models/User.js';
 import Section from '../../models/Section.js';
@@ -45,6 +46,10 @@ export const listStudents = async (query) => {
     ];
   }
 
+  const fetchAll = query.all === 'true' || query.limit === 'all';
+  const queryLimit = fetchAll ? 0 : limit;
+  const querySkip = fetchAll ? 0 : skip;
+
   const [students, total] = await Promise.all([
     Student.find(filter)
       .populate('user', 'name email phone isActive profileImage')
@@ -58,15 +63,15 @@ export const listStudents = async (query) => {
           populate: { path: 'user', select: 'name email phone' },
         },
       })
-      .skip(skip)
-      .limit(limit)
+      .skip(querySkip)
+      .limit(queryLimit)
       .sort({ rollNumber: 1 }),
     Student.countDocuments(filter),
   ]);
 
   return {
     students,
-    meta: buildPaginationMeta(total, page, limit),
+    meta: buildPaginationMeta(total, page, fetchAll ? total : limit),
   };
 };
 
@@ -106,9 +111,69 @@ export const updateStudent = async (id, data) => {
   if (data.rollNumber) {
     student.rollNumber = data.rollNumber.trim().toUpperCase();
   }
-  if (data.section) {
-    student.section = data.section;
+
+  // Update Semester if provided
+  if (data.semester !== undefined && data.semester !== null) {
+    const semNum = parseInt(String(data.semester).replace(/\D/g, ''), 10);
+    if (!isNaN(semNum) && semNum >= 1 && semNum <= 8) {
+      student.semester = semNum;
+    }
   }
+
+  // Update Section if provided
+  if (data.section) {
+    let resolvedSection = null;
+    const isObjectId = mongoose.Types.ObjectId.isValid(data.section) && /^[0-9a-fA-F]{24}$/.test(String(data.section));
+    if (isObjectId) {
+      resolvedSection = await Section.findById(data.section);
+    }
+
+    if (!resolvedSection) {
+      const rawSec = String(data.section).trim();
+      const secLetterMatch = rawSec.match(/([A-D])/i);
+      const letter = secLetterMatch ? secLetterMatch[1].toUpperCase() : 'B';
+      const targetSem = student.semester || 5;
+
+      resolvedSection = await Section.findOne({
+        semester: targetSem,
+        $or: [
+          { code: `CSE-${letter}` },
+          { name: `Section ${letter}` },
+          { code: new RegExp(letter, 'i') },
+          { name: new RegExp(letter, 'i') },
+        ],
+      });
+
+      if (!resolvedSection) {
+        resolvedSection = await Section.findOne({
+          $or: [
+            { code: `CSE-${letter}` },
+            { name: `Section ${letter}` },
+          ],
+        });
+      }
+    }
+
+    if (resolvedSection) {
+      student.section = resolvedSection._id;
+
+      // Automatically reassign student to the appointed Tutor Guardian / MentorGroup of the new section
+      const activeMentorGroup = await MentorGroup.findOne({
+        section: resolvedSection._id,
+        isActive: true,
+      });
+
+      if (activeMentorGroup) {
+        // Remove from previous mentor group if any
+        if (student.mentorGroup && student.mentorGroup.toString() !== activeMentorGroup._id.toString()) {
+          await MentorGroup.findByIdAndUpdate(student.mentorGroup, { $pull: { students: student._id } });
+        }
+        student.mentorGroup = activeMentorGroup._id;
+        await MentorGroup.findByIdAndUpdate(activeMentorGroup._id, { $addToSet: { students: student._id } });
+      }
+    }
+  }
+
   if (data.mentorGroup !== undefined) {
     student.mentorGroup = data.mentorGroup;
   }

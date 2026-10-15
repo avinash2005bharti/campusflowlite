@@ -110,15 +110,16 @@ function RoleRouteGuard({ role, children }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isAppointedTg = Boolean(
-    currentRole === 'tg' ||
-    currentUser?.isTG ||
-    currentUser?.mentorGroupId
-  );
+  const isStudent = currentUser?.role === 'STUDENT' || currentRole === 'student';
+  const isFaculty = currentUser?.role === 'TEACHER' || currentUser?.role === 'HOD';
+  const isAppointedTg = isFaculty && Boolean(currentUser?.isTG);
 
   let isMatch = false;
 
-  if (Array.isArray(role)) {
+  if (isStudent) {
+    // Students can only access student routes
+    isMatch = (Array.isArray(role) ? role.includes('student') : role === 'student');
+  } else if (Array.isArray(role)) {
     isMatch = role.some((r) => {
       if (r === currentRole) return true;
       if (r === 'teacher') return currentRole === 'teacher' || (currentRole === 'tg' && isAppointedTg);
@@ -133,14 +134,8 @@ function RoleRouteGuard({ role, children }) {
     }
   } else if (role === 'teacher') {
     isMatch = currentRole === 'teacher' || (currentRole === 'tg' && isAppointedTg);
-  } else if (role === 'tg') {
-    isMatch = isAppointedTg && (currentRole === 'teacher' || currentRole === 'tg');
-  }
-
-  if (!isMatch) {
-    // If a regular faculty hits TG portal, redirect to teacher
-    if (role === 'tg' && currentRole === 'teacher') {
-      return <Navigate to="/teacher" replace />;
+    if (role === 'tg' && (currentRole === 'teacher' || currentRole === 'tg')) {
+      return children;
     }
 
     return (
@@ -181,7 +176,7 @@ export default function App() {
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/register" element={<StudentRegisterPage />} />
       <Route path="/register/student" element={<StudentRegisterPage />} />
-      <Route path="/register/teacher" element={<TeacherRegisterPage />} />
+      <Route path="/register/teacher" element={<Navigate to="/register" replace />} />
 
       {/* Protected Layout Routes */}
       <Route path="/" element={<ProtectedLayout />}>
@@ -358,22 +353,14 @@ export default function App() {
           }
         />
 
-        {/* Teacher Routes */}
+        {/* Legacy Teacher Routes Redirect to TG Workspace */}
         <Route
           path="teacher"
-          element={
-            <RoleRouteGuard role="teacher">
-              <TeacherDashboard />
-            </RoleRouteGuard>
-          }
+          element={<Navigate to="/tg" replace />}
         />
         <Route
           path="teacher/leaves"
-          element={
-            <RoleRouteGuard role="teacher">
-              <TeacherLeaves />
-            </RoleRouteGuard>
-          }
+          element={<Navigate to="/tg/requests" replace />}
         />
       </Route>
 

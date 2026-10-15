@@ -45,16 +45,88 @@ export const REQUEST_TYPE_LABELS = {
   HACKATHON: 'Hackathon / Competition',
   SPORTS: 'Sports Activity',
   CULTURAL: 'Cultural Activity',
-  COLLEGE_DUTY: 'On-Duty (College Service)',
-  OD: 'On-Duty (OD)',
-  MEDICAL: 'Medical',
+  COLLEGE_DUTY: 'College Duty / Official Activity',
+  OD: 'Official Activity',
+  MEDICAL: 'Medical Leave',
   CASUAL: 'Casual Leave',
   SICK: 'Sick Leave',
-  ACADEMIC: 'Academic Leave',
+  ACADEMIC: 'Academic Activity',
   EMERGENCY: 'Emergency Leave',
-  DUTY: 'Duty Leave',
+  DUTY: 'Official Duty',
   OTHER: 'Special Activity',
 };
+
+/**
+ * Remove underscores and format any internal identifier into clean Title Case
+ */
+export function cleanLabel(text) {
+  if (!text) return '';
+  if (typeof text !== 'string') return String(text);
+  return text
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
+
+/**
+ * Human-readable event category for Indian colleges
+ */
+export function getEventTypeLabel(type) {
+  if (!type) return 'College Activity';
+  const upper = String(type).toUpperCase();
+  const map = {
+    HACKATHON: 'Hackathon / Technical Competition',
+    SPORTS: 'Sports Meet / Tournament',
+    CULTURAL: 'Cultural Event / Fest',
+    COLLEGE_DUTY: 'College Duty / Official Activity',
+    OTHER: 'Other Academic Activity',
+  };
+  return map[upper] || cleanLabel(type);
+}
+
+/**
+ * Human-readable leave category
+ */
+export function getLeaveTypeLabel(type) {
+  if (!type) return 'Leave Application';
+  const upper = String(type).toUpperCase();
+  const map = {
+    CASUAL: 'Casual Leave',
+    MEDICAL: 'Medical Leave',
+    EMERGENCY: 'Emergency Leave',
+    DUTY: 'Duty Leave',
+    OTHER: 'Special Leave',
+  };
+  return map[upper] || `${cleanLabel(type)} Leave`;
+}
+
+/**
+ * Human-readable request status in Indian college conventions
+ */
+export function getStatusLabel(status) {
+  if (!status) return 'Pending Review';
+  const upper = String(status).toUpperCase();
+  const map = {
+    PENDING: 'Pending Review',
+    RECOMMENDED_BY_TG: 'Recommended by TG',
+    APPROVED_BY_HOD: 'Approved by HOD',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+    REJECTED_BY_HOD: 'Rejected by HOD',
+    REJECTED_BY_TG: 'Rejected by TG',
+    CANCELLED: 'Cancelled',
+  };
+  return map[upper] || cleanLabel(status);
+}
+
+/**
+ * Format lecture count with proper singular / plural
+ */
+export function formatLectures(count) {
+  if (count === undefined || count === null) return '0 Lectures';
+  const num = Number(count);
+  return `${num} ${num === 1 ? 'Lecture' : 'Lectures'}`;
+}
 
 /**
  * Format date string into standard Indian format (e.g. "14 Oct 2026")
@@ -129,15 +201,45 @@ export function getStudentDisplayName(user, rollNumber) {
   return 'Student';
 }
 
+/**
+ * Extract clean single section letter (A, B, C, D) from section name, code, or object
+ * Prevents overlapping (e.g. CSE-B being treated as C due to string includes('C'))
+ */
+export function getSectionLetter(sectionObjOrStr) {
+  if (!sectionObjOrStr) return '';
+  const str = (
+    typeof sectionObjOrStr === 'string'
+      ? sectionObjOrStr
+      : (sectionObjOrStr.code || sectionObjOrStr.name || '')
+  ).trim().toUpperCase();
+
+  const cseMatch = str.match(/CSE[\s\-_]*([A-D])/i);
+  if (cseMatch) return cseMatch[1].toUpperCase();
+
+  const secMatch = str.match(/SEC(?:TION)?[\s\-_]*([A-D])/i);
+  if (secMatch) return secMatch[1].toUpperCase();
+
+  const endMatch = str.match(/(?:^|[\s\-_])([A-D])$/i);
+  if (endMatch) return endMatch[1].toUpperCase();
+
+  return '';
+}
+
 export default {
   DEFAULT_ACADEMIC_SESSION,
   FULL_ACADEMIC_SESSION,
   STATUS_LABELS,
   ACTION_LABELS,
   REQUEST_TYPE_LABELS,
+  cleanLabel,
+  getEventTypeLabel,
+  getLeaveTypeLabel,
+  getStatusLabel,
+  formatLectures,
   formatDateIST,
   formatDateTimeIST,
   formatPeriods,
   getFacultyDisplayName,
   getStudentDisplayName,
+  getSectionLetter,
 };

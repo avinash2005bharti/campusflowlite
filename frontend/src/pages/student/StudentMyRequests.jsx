@@ -123,14 +123,14 @@ export default function StudentMyRequests() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-black text-slate-900 tracking-tight m-0">
-              Requests & Approvals
+              My Applications & Requests
             </h1>
             <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-extrabold uppercase tracking-wider">
-              Autonomous Clearance
+              Status Tracking
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-1 mb-0">
-            Real-time academic governance & autonomous clearance tracking
+            Track your attendance consideration requests and student leave applications
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export default function StudentMyRequests() {
           className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
         >
           <Plus size={16} />
-          <span>Apply Leave / New Request</span>
+          <span>Apply for Leave</span>
         </button>
       </div>
 
@@ -147,10 +147,10 @@ export default function StudentMyRequests() {
       <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
         <div className="flex items-center justify-between mb-4">
           <span className="text-[11px] font-extrabold text-blue-600 uppercase tracking-wider">
-            CLEARANCE PROTOCOL
+            APPROVAL WORKFLOW
           </span>
           <span className="text-[11px] text-slate-400 font-medium">
-            Avg. 24h Autonomous Turnaround
+            Standard Review Timeline
           </span>
         </div>
 
@@ -160,23 +160,23 @@ export default function StudentMyRequests() {
               1
             </span>
             <span className="text-xs font-bold text-slate-900">Student Submits</span>
-            <span className="text-[11px] text-slate-500 font-medium">Digital e-Form</span>
+            <span className="text-[11px] text-slate-500 font-medium">Online Request</span>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mb-1">
               2
             </span>
-            <span className="text-xs font-bold text-slate-900">Mentor / TG Review</span>
-            <span className="text-[11px] text-slate-500 font-medium">Approval workflow</span>
+            <span className="text-xs font-bold text-slate-900">Tutor Guardian (TG)</span>
+            <span className="text-[11px] text-slate-500 font-medium">Recommendation</span>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col items-center">
             <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mb-1">
               3
             </span>
-            <span className="text-xs font-bold text-slate-900">HOD Clearance & Sync</span>
-            <span className="text-[11px] text-slate-500 font-medium">Agent Auto-Update</span>
+            <span className="text-xs font-bold text-slate-900">Head of Department (HOD)</span>
+            <span className="text-[11px] text-slate-500 font-medium">Final Approval</span>
           </div>
         </div>
       </div>
@@ -233,13 +233,14 @@ export default function StudentMyRequests() {
             const isConsideration = item.itemType === 'CONSIDERATION';
 
             const title = isConsideration
-              ? `OD Consideration: ${item.eventTitle}`
-              : `Student Leave: ${item.leaveType}`;
+              ? `Attendance Consideration: ${item.eventTitle}`
+              : `Leave Application: ${item.leaveType ? item.leaveType.replace(/_/g, ' ') : 'Leave'}`;
 
             const periodText = isConsideration
-              ? item.periodTiming ||
-                `Requested Periods: ${item.requestedPeriods} Periods • P2 (10:50 AM - 11:40 AM), P3 (11:40 AM - 12:30 PM), P4 (12:30 PM - 01:20 PM)`
-              : `Total Duration: ${item.totalDays} Academic Day(s)`;
+              ? (item.hodReview?.approvedPeriods
+                  ? `Approved Lectures: ${item.hodReview.approvedPeriods} of ${item.requestedPeriods} Requested`
+                  : `Requested Lectures: ${item.requestedPeriods} ${item.requestedPeriods === 1 ? 'Lecture' : 'Lectures'}`)
+              : `Total Duration: ${item.totalDays} Day${item.totalDays !== 1 ? 's' : ''}`;
 
             return (
               <div
@@ -257,7 +258,7 @@ export default function StudentMyRequests() {
                         {title}
                       </h3>
                       <p className="text-xs text-slate-500 font-mono mt-0.5 m-0">
-                        {studentName} ({enrollmentNo}) • #{item._id ? item._id.toString() : '70f7f477'}
+                        {studentName} ({enrollmentNo})
                       </p>
                     </div>
                   </div>
@@ -270,21 +271,21 @@ export default function StudentMyRequests() {
                   <div className="flex items-center gap-1.5 text-slate-500">
                     <Calendar size={14} />
                     <span>
-                      {item.startDate} - {item.endDate}
+                      {item.startDate} {item.endDate !== item.startDate ? `to ${item.endDate}` : ''}
                     </span>
                   </div>
                   <span className="text-[11px] text-amber-700 font-semibold">
-                    {isPending ? 'Est. resolution today' : 'Processed'}
+                    {isPending ? 'Under Review' : 'Processed'}
                   </span>
                 </div>
 
                 {/* Reason */}
                 <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs text-slate-700 font-medium">
                   <span className="text-slate-500">Reason: </span>
-                  <span>{item.description || item.reason || 'Academic clearance request'}</span>
+                  <span>{item.description || item.reason || 'Attendance consideration request'}</span>
                 </div>
 
-                {/* Requested Periods Pill */}
+                {/* Requested Lectures Pill */}
                 <div className="p-2.5 rounded-xl bg-blue-50/60 border border-blue-100 text-xs font-semibold text-blue-800 flex items-center gap-2">
                   <Clock size={14} className="shrink-0 text-blue-600" />
                   <span>{periodText}</span>
@@ -307,7 +308,7 @@ export default function StudentMyRequests() {
                       className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
                     >
                       <FileText size={14} />
-                      <span>View Formal Application</span>
+                      <span>View Order</span>
                     </button>
                   </div>
                 )}

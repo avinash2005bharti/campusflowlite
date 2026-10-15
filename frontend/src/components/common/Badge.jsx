@@ -1,4 +1,5 @@
 import React from 'react';
+import { CheckCircle2, Clock, XCircle, AlertCircle } from 'lucide-react';
 
 /**
  * Standard Design System Badge / Tag Primitive
@@ -27,10 +28,10 @@ export default function Badge({
 
   const sizeStyle =
     size === 'xs'
-      ? { fontSize: '12px', padding: '0.2rem 0.55rem', borderRadius: '9999px', fontWeight: 700 }
+      ? { fontSize: '11px', padding: '0.2rem 0.55rem', borderRadius: '9999px', fontWeight: 700 }
       : size === 'sm'
-      ? { fontSize: '13px', padding: '0.25rem 0.65rem', borderRadius: '9999px', fontWeight: 600 }
-      : { fontSize: '13px', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontWeight: 600 };
+      ? { fontSize: '12px', padding: '0.25rem 0.65rem', borderRadius: '9999px', fontWeight: 700 }
+      : { fontSize: '13px', padding: '0.3rem 0.75rem', borderRadius: '9999px', fontWeight: 700 };
 
   const formatChildren = (content) => {
     if (typeof content !== 'string') return content;
@@ -59,9 +60,29 @@ export default function Badge({
     }
   };
 
+  const iconSize = size === 'xs' ? 11 : 12;
+  const getDefaultStatusIcon = () => {
+    if (icon || dot) return null;
+    if (variant === 'warning' || children === 'RECOMMENDED_BY_TG' || children === 'Recommended by TG') {
+      return <Clock size={iconSize} className="shrink-0 text-amber-800" />;
+    }
+    if (variant === 'danger' || children === 'REJECTED' || children === 'Rejected') {
+      return <XCircle size={iconSize} className="shrink-0 text-rose-800" />;
+    }
+    if (variant === 'success' || children === 'APPROVED' || children === 'Approved' || children === 'APPROVED_BY_HOD') {
+      return <CheckCircle2 size={iconSize} className="shrink-0 text-emerald-800" />;
+    }
+    if (variant === 'primary' || children === 'PENDING' || children === 'Pending Review') {
+      return <Clock size={iconSize} className="shrink-0 text-indigo-800" />;
+    }
+    return null;
+  };
+
+  const defaultIcon = getDefaultStatusIcon();
+
   return (
     <span
-      className={`badge ${variantClass} ${className}`.trim()}
+      className={`badge ${variantClass} inline-flex items-center gap-1.5 ${className}`.trim()}
       style={sizeStyle}
       {...props}
     >
@@ -79,7 +100,8 @@ export default function Badge({
         />
       )}
       {icon && <span className="inline-flex shrink-0">{icon}</span>}
-      {formatChildren(children)}
+      {!icon && defaultIcon}
+      <span>{formatChildren(children)}</span>
     </span>
   );
 }

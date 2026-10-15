@@ -7,11 +7,11 @@ import { sendSuccess } from '../../utils/response.js';
 
 const router = Router();
 
-// HOD, Admin, and TG can list and view students
+// HOD, Admin, TG, and Students can list and view students
 router.get(
   '/',
   auth,
-  authorize('HOD', 'ADMIN', 'TG'),
+  authorize('HOD', 'ADMIN', 'TG', 'STUDENT'),
   asyncHandler(async (req, res) => {
     const result = await studentsService.listStudents(req.query);
     return sendSuccess(res, result.students, result.meta);
@@ -41,7 +41,7 @@ router.patch(
 router.delete(
   '/:id',
   auth,
-  authorize('HOD', 'ADMIN', 'TG'),
+  authorize('HOD', 'ADMIN'),
   asyncHandler(async (req, res) => {
     const result = await studentsService.deleteStudent(req.params.id);
     return sendSuccess(res, result);

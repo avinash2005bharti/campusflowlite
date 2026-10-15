@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useERP } from '../context/ERPContext.jsx';
-import { Bell, ShieldCheck, User, Menu, LogOut, ArrowRight, CheckCheck, RefreshCw } from 'lucide-react';
+import { Bell, ShieldCheck, User, Menu, LogOut, CheckCheck, RefreshCw } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { notificationApi } from '../api';
 import { formatDateTimeIST } from '../utils/constants.js';
@@ -36,7 +36,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
   const [expandedNotifId, setExpandedNotifId] = useState(null);
   const notifRef = useRef(null);
 
-  const isTeacherAndTG = Boolean(currentUser?.isTG || currentUser?.mentorGroupId);
+  const isFaculty = currentUser?.role === 'TEACHER' || currentUser?.role === 'HOD';
 
   // Close notifications on outside click or Escape key
   useEffect(() => {
@@ -139,36 +139,10 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
               Verified
             </span>
           </div>
-
-          {/* Role Switcher if user is both Teacher and appointed TG */}
-          {isTeacherAndTG && (
-            <button
-              onClick={() => {
-                const nextRole = currentRole === 'tg' ? 'teacher' : 'tg';
-                switchRole(nextRole);
-                navigate(`/${nextRole}`);
-              }}
-              className="btn btn-outline btn-xs font-semibold"
-              title="Switch portal view"
-            >
-              <span>Switch to {currentRole === 'tg' ? 'Faculty' : 'TG'} Portal</span>
-              <ArrowRight size={12} className="ml-1" />
-            </button>
-          )}
         </div>
 
         {/* Right: Actions, Notification Bell & Profile */}
         <div className="flex items-center gap-2">
-          {/* Teacher Dashboard link for TG Portal matching tg dashboard.png */}
-          {(currentRole === 'tg' || isTeacherAndTG) && (
-            <Link
-              to="/teacher"
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50/70 rounded-xl border border-blue-200/80 transition-colors no-underline cursor-pointer mr-1"
-            >
-              <span>Teacher Dashboard</span>
-              <ArrowRight size={13} />
-            </Link>
-          )}
 
           {/* Notification Bell with Dropdown */}
           <div className="relative" ref={notifRef}>
@@ -189,14 +163,17 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
             {showNotifications && (
               <div
-                className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-50 animate-scale-up"
-                style={{ transformOrigin: 'top right' }}
+                className="notification-dropdown-panel"
+                style={{
+                  width: '380px',
+                  maxWidth: 'calc(100vw - 24px)',
+                }}
               >
                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-900">Notifications</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-extrabold text-slate-900">Notifications</span>
                     {unreadNotifCount > 0 && (
-                      <span className="badge badge-rose text-[10px] py-0 px-1.5 font-bold">
+                      <span className="badge badge-rose text-[11px] py-0.5 px-2 font-black rounded-full shadow-2xs">
                         {unreadNotifCount}
                       </span>
                     )}
@@ -204,17 +181,17 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                   {unreadNotifCount > 0 && (
                     <button
                       onClick={handleMarkAllRead}
-                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1.5 cursor-pointer hover:underline"
                     >
-                      <CheckCheck size={12} />
+                      <CheckCheck size={14} />
                       <span>Mark all read</span>
                     </button>
                   )}
                 </div>
 
-                <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
                   {notifications.length === 0 ? (
-                    <div className="p-6 text-center text-xs text-slate-400">
+                    <div className="p-8 text-center text-xs text-slate-400 font-medium">
                       No notifications yet.
                     </div>
                   ) : (
@@ -224,25 +201,29 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                         <div
                           key={n._id}
                           onClick={() => handleNotificationClick(n)}
-                          className={`p-3.5 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
-                            !n.isRead ? 'bg-blue-50/50' : 'text-slate-600'
+                          className={`p-4 text-xs transition-colors hover:bg-slate-50 cursor-pointer ${
+                            !n.isRead ? 'bg-blue-50/60' : 'text-slate-700'
                           }`}
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="font-extrabold text-slate-900 flex items-start gap-2 min-w-0 flex-1">
                               {!n.isRead && (
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0" />
+                                <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
                               )}
-                              <span>{n.title}</span>
+                              <span className="leading-snug break-words">{n.title}</span>
                             </div>
-                            <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                            <span className="text-[11px] text-slate-400 shrink-0 font-semibold whitespace-nowrap pt-0.5">
                               {formatDateTimeIST(n.createdAt)}
                             </span>
                           </div>
                           <div
-                            className={`text-[11px] text-slate-600 mt-1 leading-relaxed ${
-                              isExpanded ? '' : 'line-clamp-2'
-                            }`}
+                            className="text-xs text-slate-600 mt-1.5 leading-relaxed break-words"
+                            style={{
+                              display: isExpanded ? 'block' : '-webkit-box',
+                              WebkitLineClamp: isExpanded ? 'unset' : 3,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: isExpanded ? 'visible' : 'hidden',
+                            }}
                           >
                             {n.message}
                           </div>
