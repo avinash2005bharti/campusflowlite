@@ -180,10 +180,21 @@ export function ERPProvider({ children }) {
       return;
     }
 
-    const socketInstance = io(window.location.origin, {
+    const socketUrl =
+      import.meta.env.VITE_BACKEND_URL ||
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+        ? 'http://localhost:5000'
+        : window.location.origin);
+
+    const socketInstance = io(socketUrl, {
       auth: { token: getAuthToken() },
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       reconnectionAttempts: 5,
+    });
+
+    socketInstance.on('connect_error', (err) => {
+      // Gracefully handle auth or connection errors without uncaught browser WebSocket errors
+      console.warn('Realtime feed notice:', err.message);
     });
 
     socketInstance.on('connect', () => {
@@ -242,9 +253,26 @@ export function ERPProvider({ children }) {
     return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
   });
 
-  // Register service worker on initial mount
+  // Register service worker on initial mount (production only, skip in local dev to avoid stale chunk cache)
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        // In local development, unregister any stale service workers to prevent cached chunk conflicts
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister();
+          }
+        });
+        if ('caches' in window) {
+          caches.keys().then((names) => {
+            for (const name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+        return;
+      }
+
       navigator.serviceWorker
         .register('/service-worker.js')
         .then(async (reg) => {

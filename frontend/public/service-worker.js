@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campusflow-shell-v1';
+const CACHE_NAME = 'campusflow-shell-v2';
 const APP_SHELL = [
   '/',
   '/manifest.json',
@@ -19,7 +19,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(Promise.all([
     caches.keys().then((cacheNames) => Promise.all(
       cacheNames
-        .filter((cacheName) => cacheName.startsWith('campusflow-shell-') && cacheName !== CACHE_NAME)
+        .filter((cacheName) => cacheName !== CACHE_NAME)
         .map((cacheName) => caches.delete(cacheName))
     )),
     self.clients.claim()
@@ -30,12 +30,15 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const requestUrl = new URL(request.url);
 
+  // Never cache or intercept in local development or for APIs / sockets
   if (
     request.method !== 'GET'
     || requestUrl.origin !== self.location.origin
     || requestUrl.pathname.startsWith('/api/')
     || requestUrl.pathname.startsWith('/uploads/')
     || requestUrl.pathname.startsWith('/socket.io/')
+    || self.location.hostname === 'localhost'
+    || self.location.hostname === '127.0.0.1'
   ) {
     return;
   }
