@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { dashboardApi, mentorshipApi, considerationApi, leaveApi, noticeApi } from '../../api';
@@ -17,7 +17,8 @@ import {
   ChevronRight,
   Megaphone,
 } from 'lucide-react';
-import OfficialClearancesLedgerModal from '../../components/modals/OfficialClearancesLedgerModal.jsx';
+
+const OfficialClearancesLedgerModal = lazy(() => import('../../components/modals/OfficialClearancesLedgerModal.jsx'));
 
 export default function TgDashboard() {
   const { currentUser } = useERP();
@@ -137,7 +138,7 @@ export default function TgDashboard() {
             <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center mb-3">
               <FileText size={18} />
             </div>
-            <span className="block text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            <span className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
               PENDING REQUESTS
             </span>
             <span className="block text-3xl font-black text-slate-900 mt-1">
@@ -163,7 +164,7 @@ export default function TgDashboard() {
             <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
               <Users size={18} />
             </div>
-            <span className="block text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
+            <span className="block text-[11px] font-extrabold text-slate-600 uppercase tracking-wider">
               TOTAL STUDENTS
             </span>
             <span className="block text-3xl font-black text-slate-900 mt-1">
@@ -304,7 +305,7 @@ export default function TgDashboard() {
               <Megaphone size={18} />
             </div>
             <p className="text-xs font-bold text-slate-700 m-0">No notices posted</p>
-            <p className="text-[11px] text-slate-400 m-0 mt-0.5">
+            <p className="text-[11px] text-slate-600 m-0 mt-0.5">
               No active circulars for {deptCode} • Semester {semNum} • Section {cleanSec}.
             </p>
           </div>
@@ -313,13 +314,15 @@ export default function TgDashboard() {
 
       {/* Official Clearances Ledger Modal */}
       {ledgerModalTab && (
-        <OfficialClearancesLedgerModal
-          initialTab={ledgerModalTab}
-          onClose={() => setLedgerModalTab(null)}
-          isTgView={true}
-          assignedSemester={semNum}
-          assignedSection={cleanSec}
-        />
+        <Suspense fallback={null}>
+          <OfficialClearancesLedgerModal
+            initialTab={ledgerModalTab}
+            onClose={() => setLedgerModalTab(null)}
+            isTgView={true}
+            assignedSemester={semNum}
+            assignedSection={cleanSec}
+          />
+        </Suspense>
       )}
     </div>
   );

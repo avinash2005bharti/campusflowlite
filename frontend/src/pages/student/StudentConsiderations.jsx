@@ -90,13 +90,19 @@ export default function StudentConsiderations() {
         title="Attendance Consideration Requests"
         description="Submit and track attendance consideration requests for hackathons, sports, and official college activities."
         actions={
-          <Button
-            size="sm"
-            icon={<Plus size={16} />}
-            onClick={() => openModal('REQUEST_CONSIDERATION')}
-          >
-            New Request
-          </Button>
+          <div className="flex items-center gap-2.5">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-[11px] font-bold">
+              <Clock size={13} className="text-blue-600" />
+              <span>Window: 9:00 AM – 4:00 PM IST</span>
+            </span>
+            <Button
+              size="sm"
+              icon={<Plus size={16} />}
+              onClick={() => openModal('REQUEST_CONSIDERATION')}
+            >
+              New Request
+            </Button>
+          </div>
         }
       />
 

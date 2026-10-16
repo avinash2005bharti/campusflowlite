@@ -1,47 +1,54 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom';
 import { useERP } from './context/ERPContext.jsx';
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 
-// Auth Pages
-import LoginPage from './pages/auth/LoginPage.jsx';
-import ChangePasswordPage from './pages/auth/ChangePasswordPage.jsx';
-import StudentRegisterPage from './pages/auth/StudentRegisterPage.jsx';
-import TeacherRegisterPage from './pages/auth/TeacherRegisterPage.jsx';
+// Auth Pages (Lazy)
+const LoginPage = lazy(() => import('./pages/auth/LoginPage.jsx'));
+const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage.jsx'));
+const StudentRegisterPage = lazy(() => import('./pages/auth/StudentRegisterPage.jsx'));
+const TeacherRegisterPage = lazy(() => import('./pages/auth/TeacherRegisterPage.jsx'));
 
-// Student Pages
-import StudentDashboard from './pages/student/StudentDashboard.jsx';
-import StudentMyRequests from './pages/student/StudentMyRequests.jsx';
-import StudentConsiderations from './pages/student/StudentConsiderations.jsx';
-import StudentLeaves from './pages/student/StudentLeaves.jsx';
-import StudentProfile from './pages/student/StudentProfile.jsx';
+// Student Pages (Lazy)
+const StudentDashboard = lazy(() => import('./pages/student/StudentDashboard.jsx'));
+const StudentMyRequests = lazy(() => import('./pages/student/StudentMyRequests.jsx'));
+const StudentConsiderations = lazy(() => import('./pages/student/StudentConsiderations.jsx'));
+const StudentLeaves = lazy(() => import('./pages/student/StudentLeaves.jsx'));
+const StudentProfile = lazy(() => import('./pages/student/StudentProfile.jsx'));
 
-// TG Pages
-import TgDashboard from './pages/tg/TgDashboard.jsx';
-import TgRequests from './pages/tg/TgRequests.jsx';
-import TgMyStudents from './pages/tg/TgMyStudents.jsx';
+// TG Pages (Lazy)
+const TgDashboard = lazy(() => import('./pages/tg/TgDashboard.jsx'));
+const TgRequests = lazy(() => import('./pages/tg/TgRequests.jsx'));
+const TgMyStudents = lazy(() => import('./pages/tg/TgMyStudents.jsx'));
 
-// HOD Pages
-import HodDashboard from './pages/hod/HodDashboard.jsx';
-import HodConsiderations from './pages/hod/HodConsiderations.jsx';
-import HodLeaves from './pages/hod/HodLeaves.jsx';
-import HodMentorship from './pages/hod/HodMentorship.jsx';
-import HodStudents from './pages/hod/HodStudents.jsx';
-import HodTeachers from './pages/hod/HodTeachers.jsx';
-import HodReports from './pages/hod/HodReports.jsx';
+// HOD Pages (Lazy)
+const HodDashboard = lazy(() => import('./pages/hod/HodDashboard.jsx'));
+const HodConsiderations = lazy(() => import('./pages/hod/HodConsiderations.jsx'));
+const HodLeaves = lazy(() => import('./pages/hod/HodLeaves.jsx'));
+const HodMentorship = lazy(() => import('./pages/hod/HodMentorship.jsx'));
+const HodStudents = lazy(() => import('./pages/hod/HodStudents.jsx'));
+const HodTeachers = lazy(() => import('./pages/hod/HodTeachers.jsx'));
+const HodReports = lazy(() => import('./pages/hod/HodReports.jsx'));
 
-// Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard.jsx';
-import AdminUsers from './pages/admin/AdminUsers.jsx';
-import AdminBulkImport from './pages/admin/AdminBulkImport.jsx';
-import AdminHodLeaves from './pages/admin/AdminHodLeaves.jsx';
-import AdminAudit from './pages/admin/AdminAudit.jsx';
+// Admin Pages (Lazy)
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers.jsx'));
+const AdminBulkImport = lazy(() => import('./pages/admin/AdminBulkImport.jsx'));
+const AdminHodLeaves = lazy(() => import('./pages/admin/AdminHodLeaves.jsx'));
+const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
 
-// Teacher Pages
-import TeacherDashboard from './pages/teacher/TeacherDashboard.jsx';
-import TeacherLeaves from './pages/teacher/TeacherLeaves.jsx';
+// Teacher Pages (Lazy)
+const TeacherDashboard = lazy(() => import('./pages/teacher/TeacherDashboard.jsx'));
+const TeacherLeaves = lazy(() => import('./pages/teacher/TeacherLeaves.jsx'));
 
-import NotFound from './pages/NotFound.jsx';
+const NotFound = lazy(() => import('./pages/NotFound.jsx'));
+
+const PageLoader = () => (
+  <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
+    <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+    <span className="text-xs text-slate-500 font-bold">Loading Academic Module...</span>
+  </div>
+);
 
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
@@ -170,7 +177,8 @@ function RoleRouteGuard({ role, children }) {
 
 export default function App() {
   return (
-    <Routes>
+    <Suspense fallback={<PageLoader />}>
+      <Routes>
       {/* Public Routes */}
       <Route path="/login" element={<LoginWrapper />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
@@ -367,5 +375,6 @@ export default function App() {
       {/* Catch-all fallback 404 page */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </Suspense>
   );
 }

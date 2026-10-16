@@ -51,16 +51,17 @@ export default function PrintClearanceReportModal({
         secName.toLowerCase().includes(selectedSection.toLowerCase().replace('section', '').trim()) ||
         secName === selectedSection;
 
+      const isApproved =
+        item.status === 'APPROVED' ||
+        item.status === 'APPROVED_BY_HOD' ||
+        item.tier2Reviewer?.status === 'APPROVED';
+      if (!isApproved) return false;
+
       let matchesType = true;
       if (reportType === 'CONSIDERATION') {
         matchesType = item.requestKind === 'CONSIDERATION' || !item.leaveType;
       } else if (reportType === 'LEAVE') {
         matchesType = item.requestKind === 'LEAVE' || Boolean(item.leaveType);
-      } else if (reportType === 'APPROVED_ONLY') {
-        matchesType =
-          item.status === 'APPROVED' ||
-          item.status === 'APPROVED_BY_HOD' ||
-          item.tier2Reviewer?.status === 'APPROVED';
       }
 
       return matchesSem && matchesSec && matchesType;
@@ -194,7 +195,7 @@ export default function PrintClearanceReportModal({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>OIST CSE - Official Sanctioned OD & Leave Ledger</title>
+          <title>OIST CSE - Official Approved Clearances</title>
           <style>
             @page {
               size: landscape;
@@ -302,7 +303,7 @@ export default function PrintClearanceReportModal({
           <div class="header-bar">
             <h1 class="title-main">ORIENTAL INSTITUTE OF SCIENCE & TECHNOLOGY (OIST)</h1>
             <p class="title-sub">Department of Computer Science & Engineering • CampusFlow ERP</p>
-            <h2 class="title-ledger">Official Approved Attendance Considerations & Sanctioned OD / Leave Ledger</h2>
+            <h2 class="title-ledger">Official Approved Clearances</h2>
           </div>
 
           <div class="meta-bar">
@@ -488,10 +489,13 @@ export default function PrintClearanceReportModal({
                   key={tab.id}
                   type="button"
                   onClick={() => setReportType(tab.id)}
-                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                  style={
                     reportType === tab.id
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      ? { backgroundColor: '#2563EB', color: '#FFFFFF', borderColor: '#1D4ED8' }
+                      : { backgroundColor: '#F8FAFC', color: '#334155', borderColor: '#CBD5E1' }
+                  }
+                  className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer text-center ${
+                    reportType === tab.id ? 'shadow-2xs' : 'hover:bg-slate-100'
                   }`}
                 >
                   {tab.label}
@@ -514,17 +518,28 @@ export default function PrintClearanceReportModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer transition-colors"
+              style={{
+                backgroundColor: '#F1F5F9',
+                color: '#334155',
+                border: '1px solid #CBD5E1',
+              }}
+              className="px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-200 cursor-pointer transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handlePrint}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-xs flex items-center gap-2 cursor-pointer transition-all"
+              style={{
+                backgroundColor: '#2563EB',
+                color: '#FFFFFF',
+                border: '1px solid #1D4ED8',
+                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+              }}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white flex items-center gap-2 cursor-pointer transition-all"
             >
-              <Printer size={14} />
-              <span>Generate & Print Report</span>
+              <Printer size={15} style={{ color: '#FFFFFF' }} />
+              <span style={{ color: '#FFFFFF' }}>Generate & Print Report</span>
             </button>
           </div>
         </div>

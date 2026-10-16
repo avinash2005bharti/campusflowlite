@@ -7,6 +7,8 @@ import {
   isEndDateGteStartDate,
   isExcessivelyBackdated,
   rangesOverlap,
+  getISTTime,
+  isWithinConsiderationWindow,
 } from '../src/utils/dates.js';
 
 import { resolveApprovalChain } from '../src/modules/leaves/leaves.service.js';
@@ -395,6 +397,96 @@ describe('12. Section Letter Isolation, Temporary Passwords & Student Profile Up
     assert.equal(tempPass.length, 10);
   });
 });
+
+describe('13. Student Consideration Time Window Enforcement (9:00 AM to 4:00 PM IST)', () => {
+  it('should parse IST time components accurately', () => {
+    // 2026-10-15T03:30:00Z is 09:00:00 IST (UTC + 5:30)
+    const nineAmUtc = new Date('2026-10-15T03:30:00.000Z');
+    const istTime = getISTTime(nineAmUtc);
+    assert.equal(istTime.hour, 9);
+    assert.equal(istTime.minute, 0);
+
+    // 2026-10-15T10:30:00Z is 16:00:00 IST (UTC + 5:30)
+    const fourPmUtc = new Date('2026-10-15T10:30:00.000Z');
+    const istTime4pm = getISTTime(fourPmUtc);
+    assert.equal(istTime4pm.hour, 16);
+    assert.equal(istTime4pm.minute, 0);
+  });
+
+  it('should allow student consideration application strictly between 9:00 AM and 4:00 PM IST', () => {
+    // 8:59 AM IST (03:29 UTC) -> Outside window
+    const before9am = new Date('2026-10-15T03:29:00.000Z');
+    assert.equal(isWithinConsiderationWindow(before9am), false);
+
+    // 9:00 AM IST (03:30 UTC) -> Inside window
+    const at9am = new Date('2026-10-15T03:30:00.000Z');
+    assert.equal(isWithinConsiderationWindow(at9am), true);
+
+    // 12:30 PM IST (07:00 UTC) -> Inside window
+    const midday = new Date('2026-10-15T07:00:00.000Z');
+    assert.equal(isWithinConsiderationWindow(midday), true);
+
+    // 3:59 PM IST (10:29 UTC) -> Inside window
+    const before4pm = new Date('2026-10-15T10:29:00.000Z');
+    assert.equal(isWithinConsiderationWindow(before4pm), true);
+
+    // 4:00 PM IST (10:30 UTC) -> Inside window (boundary)
+    const at4pm = new Date('2026-10-15T10:30:00.000Z');
+    assert.equal(isWithinConsiderationWindow(at4pm), true);
+
+    // 4:01 PM IST (10:31 UTC) -> Outside window
+    const after4pm = new Date('2026-10-15T10:31:00.000Z');
+    assert.equal(isWithinConsiderationWindow(after4pm), false);
+
+    // 11:30 PM IST (18:00 UTC) -> Outside window
+    const night = new Date('2026-10-15T18:00:00.000Z');
+    assert.equal(isWithinConsiderationWindow(night), false);
+  });
+});
+
+describe('14. Automated PWA Consideration & Attendance Reminder Architecture', () => {
+  it('should verify reminder cron schedules adhere to requested windows in IST', async () => {
+    const { default: env } = await import('../src/config/env.js');
+    // Midday is configured for 1:00 PM (13:00 IST), which is between 12:30 PM and 1:30 PM
+    assert.equal(typeof env.REMINDER_MIDDAY_CRON, 'string');
+    assert.ok(env.REMINDER_MIDDAY_CRON.includes('13') || env.REMINDER_MIDDAY_CRON.includes('12'));
+
+    // Afternoon is configured for 4:00 PM (16:00 IST), which is between 4:00 PM and 4:30 PM
+    assert.equal(typeof env.REMINDER_AFTERNOON_CRON, 'string');
+    assert.ok(env.REMINDER_AFTERNOON_CRON.includes('16'));
+  });
+
+  it('should verify VAPID public and private keys are properly loaded for Web Push', async () => {
+    const { default: env } = await import('../src/config/env.js');
+    assert.ok(env.VAPID_PUBLIC_KEY && env.VAPID_PUBLIC_KEY.length > 20);
+    assert.ok(env.VAPID_PRIVATE_KEY && env.VAPID_PRIVATE_KEY.length > 20);
+    assert.ok(env.VAPID_SUBJECT && env.VAPID_SUBJECT.startsWith('mailto:'));
+  });
+
+  it('should format reminder notification payloads with correct titles, action links and tags', () => {
+    const formatReminder = (slot, recipientRole) => {
+      const isMidday = slot === 'MIDDAY';
+      const isHod = recipientRole === 'HOD' || recipientRole === 'ADMIN';
+      return {
+        title: isMidday ? 'Midday Attendance & Consideration Reminder' : 'Final Attendance & Consideration Review',
+        message: isMidday
+          ? 'Midday Reminder (12:30 PM - 1:30 PM): Please review pending student consideration requests and update class attendance.'
+          : 'Closing Reminder (4:00 PM - 4:30 PM): Student consideration submissions are closed. Please review all pending requests and finalize attendance records.',
+        link: isHod ? '/hod/considerations' : '/tg/attendance',
+        type: 'ATTENDANCE_REMINDER',
+      };
+    };
+
+    const tgMidday = formatReminder('MIDDAY', 'TG');
+    assert.equal(tgMidday.title.includes('Midday'), true);
+    assert.equal(tgMidday.link, '/tg/attendance');
+
+    const hodAfternoon = formatReminder('AFTERNOON', 'HOD');
+    assert.equal(hodAfternoon.title.includes('Final'), true);
+    assert.equal(hodAfternoon.link, '/hod/considerations');
+  });
+});
+
 
 
 

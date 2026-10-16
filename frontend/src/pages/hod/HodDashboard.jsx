@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { dashboardApi, considerationApi, leaveApi, masterDataApi, noticeApi } from '../../api';
-import { DEFAULT_ACADEMIC_SESSION, getSectionLetter } from '../../utils/constants.js';
 import {
   Calendar,
   Clock,
@@ -18,13 +17,15 @@ import {
   Megaphone,
   Trash2,
 } from 'lucide-react';
-import OfficialClearancesLedgerModal from '../../components/modals/OfficialClearancesLedgerModal.jsx';
-import SectionOverviewModal from '../../components/modals/SectionOverviewModal.jsx';
-import ClassesCurriculumModal from '../../components/modals/ClassesCurriculumModal.jsx';
-import AddFacultyModal from '../../components/modals/AddFacultyModal.jsx';
-import AddStudentModal from '../../components/modals/AddStudentModal.jsx';
-import PendingApprovalsModal from '../../components/modals/PendingApprovalsModal.jsx';
-import SendNoticeModal from '../../components/modals/SendNoticeModal.jsx';
+
+// Lazy-loaded modals for performance optimization
+const OfficialClearancesLedgerModal = lazy(() => import('../../components/modals/OfficialClearancesLedgerModal.jsx'));
+const SectionOverviewModal = lazy(() => import('../../components/modals/SectionOverviewModal.jsx'));
+const ClassesCurriculumModal = lazy(() => import('../../components/modals/ClassesCurriculumModal.jsx'));
+const AddFacultyModal = lazy(() => import('../../components/modals/AddFacultyModal.jsx'));
+const AddStudentModal = lazy(() => import('../../components/modals/AddStudentModal.jsx'));
+const PendingApprovalsModal = lazy(() => import('../../components/modals/PendingApprovalsModal.jsx'));
+const SendNoticeModal = lazy(() => import('../../components/modals/SendNoticeModal.jsx'));
 
 const HOD_REJECTED_KEY = 'campusflow_hod_rejected_ids';
 const getStoredRejectedIds = () => {
@@ -44,6 +45,7 @@ export default function HodDashboard() {
   const [pendingConsiderations, setPendingConsiderations] = useState([]);
   const [pendingLeaves, setPendingLeaves] = useState([]);
   const [students, setStudents] = useState([]);
+  const [sections, setSections] = useState([]);
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,40 +53,46 @@ export default function HodDashboard() {
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [showLedgerModal, setShowLedgerModal] = useState(false);
   const [showSectionModal, setShowSectionModal] = useState(false);
-  const [sectionModalTarget, setSectionModalTarget] = useState({ section: 'B', semester: 5 });
+  const [sectionModalTarget, setSectionModalTarget] = useState(null);
   const [showClassesModal, setShowClassesModal] = useState(false);
   const [showAddFacultyModal, setShowAddFacultyModal] = useState(false);
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
   const [showSendNoticeModal, setShowSendNoticeModal] = useState(false);
 
   // Selected Section Overview Semester (e.g. 5)
-  const [selectedSemNumber, setSelectedSemNumber] = useState(5);
+  const [selectedSemNumber, setSelectedSemNumber] = useState(null);
 
   // Academic Year State & Dropdown
-  const [academicYear, setAcademicYear] = useState(DEFAULT_ACADEMIC_SESSION || '2025-26');
+  const [academicYear, setAcademicYear] = useState('');
   const [showYearDropdown, setShowYearDropdown] = useState(false);
 
-  // Formatted date and time
-  const [currentDate, setCurrentDate] = useState('Mon, Oct 12, 2026');
-  const [currentTime, setCurrentTime] = useState('09:24 PM');
+  // Formatted date and time (synchronously initialized to prevent layout shift / CLS)
+  const getFormattedDateTime = () => {
+    const now = new Date();
+    const options = {
+      weekday: 'short',
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+    };
+    return {
+      date: now.toLocaleDateString('en-US', options),
+      time: now.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    };
+  };
+
+  const [currentDate, setCurrentDate] = useState(() => getFormattedDateTime().date);
+  const [currentTime, setCurrentTime] = useState(() => getFormattedDateTime().time);
 
   useEffect(() => {
     const updateTime = () => {
-      const now = new Date();
-      const options = {
-        weekday: 'short',
-        month: 'short',
-        day: '2-digit',
-        year: 'numeric',
-      };
-      setCurrentDate(now.toLocaleDateString('en-US', options));
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        })
-      );
+      const { date, time } = getFormattedDateTime();
+      setCurrentDate(date);
+      setCurrentTime(time);
     };
     updateTime();
     const timer = setInterval(updateTime, 60000);
@@ -93,12 +101,13 @@ export default function HodDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [sumRes, consRes, leavesRes, studentsRes, noticesRes] = await Promise.allSettled([
+      const [sumRes, consRes, leavesRes, studentsRes, noticesRes, sectionsRes] = await Promise.allSettled([
         dashboardApi.getSummary(),
         considerationApi.getHODQueue({ all: 'true' }),
         leaveApi.getHODQueue({ all: 'true' }),
         masterDataApi.getStudents({ all: 'true' }),
         noticeApi.getNotices(),
+        masterDataApi.getSections(),
       ]);
 
       const rejectedIds = getStoredRejectedIds();
@@ -135,6 +144,9 @@ export default function HodDashboard() {
       }
       if (studentsRes.status === 'fulfilled') {
         setStudents(studentsRes.value?.data || []);
+      }
+      if (sectionsRes.status === 'fulfilled') {
+        setSections(sectionsRes.value?.data || []);
       }
       if (noticesRes.status === 'fulfilled') {
         setNotices(noticesRes.value?.data || []);
@@ -183,20 +195,44 @@ export default function HodDashboard() {
     return Number(sem) === Number(selectedSemNumber);
   });
 
-  const getSectionStudentCount = (sectionLetter) => {
+  const availableSemesters = [...new Set(
+    sections
+      .map((section) => Number(section.semester))
+      .filter((semester) => Number.isInteger(semester))
+  )].sort((a, b) => a - b);
+
+  const realAcademicYears = [...new Set(
+    students
+      .map((student) => student.mentorGroup?.academicYear)
+      .filter(Boolean)
+  )].sort();
+
+  useEffect(() => {
+    if (selectedSemNumber === null && availableSemesters.length > 0) {
+      setSelectedSemNumber(availableSemesters[0]);
+    }
+  }, [availableSemesters, selectedSemNumber]);
+
+  useEffect(() => {
+    if (!academicYear && realAcademicYears.length > 0) {
+      setAcademicYear(realAcademicYears[0]);
+    }
+  }, [academicYear, realAcademicYears]);
+
+  const getSectionStudentCount = (section) => {
     return semStudents.filter((s) => {
-      return getSectionLetter(s.section) === sectionLetter.toUpperCase();
+      const sectionId = s.section?._id || s.section;
+      return sectionId === section._id;
     }).length;
   };
 
-  const countSecA = getSectionStudentCount('A');
-  const countSecB = getSectionStudentCount('B');
-  const countSecC = getSectionStudentCount('C');
-  const countSecD = getSectionStudentCount('D');
+  const visibleSections = sections
+    .filter((section) => Number(section.semester) === Number(selectedSemNumber))
+    .map((section) => ({ ...section, studentCount: getSectionStudentCount(section) }));
 
-  const openSectionDetails = (secLetter) => {
+  const openSectionDetails = (section) => {
     setSectionModalTarget({
-      section: secLetter,
+      section: section.code || section.name,
       semester: selectedSemNumber,
     });
     setShowSectionModal(true);
@@ -275,7 +311,7 @@ export default function HodDashboard() {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2 m-0">
-              <span>{getGreeting()}, HOD CSE!</span>
+              <span>{getGreeting()}, {currentUser?.name || 'HOD'}!</span>
               <span className="text-2xl">👋</span>
             </h1>
 
@@ -316,14 +352,17 @@ export default function HodDashboard() {
 
         {/* Right: OIST Campus Hero Banner */}
         <div className="lg:col-span-6 relative rounded-3xl overflow-hidden shadow-sm border border-slate-200 min-h-[160px] flex flex-col justify-between p-5 sm:p-6 bg-slate-900 text-white group">
-          {/* Background image with Oriental building */}
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-            style={{ backgroundImage: `url('/oriental.png')`, backgroundPosition: 'center 40%' }}
+          {/* LCP High-Priority Banner Image */}
+          <img
+            src="/oriental.png"
+            alt="Oriental Institute of Science and Technology Campus"
+            fetchpriority="high"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 pointer-events-none"
+            style={{ objectPosition: 'center 40%' }}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/70 to-slate-950/30 pointer-events-none" />
 
-          {/* Top content row: Quote on left, Academic Year on right */}
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-start justify-between gap-4 w-full min-w-0">
             <div className="max-w-xs">
               <p className="text-sm sm:text-base font-serif italic text-white/95 leading-snug drop-shadow-xs m-0">
@@ -335,64 +374,63 @@ export default function HodDashboard() {
               </p>
             </div>
 
-            {/* Working Academic Year Dropdown Button matching Image 1 */}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowYearDropdown((prev) => !prev)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer"
-                title="Switch Academic Session"
-              >
-                <Calendar size={14} className="text-blue-400" />
-                <span>Academic Year: {academicYear}</span>
-                <ChevronDown
-                  size={14}
-                  className={`text-slate-300 ml-0.5 transition-transform duration-200 ${
-                    showYearDropdown ? 'rotate-180 text-white' : ''
-                  }`}
-                />
-              </button>
-
-              {showYearDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setShowYearDropdown(false)}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowYearDropdown((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800/95 backdrop-blur-md border border-white/20 hover:border-white/40 text-white text-xs sm:text-sm font-bold shadow-md transition-all cursor-pointer"
+                  title="Switch Academic Session"
+                >
+                  <Calendar size={14} className="text-blue-400" />
+                  <span>{academicYear ? `Academic Year: ${academicYear}` : 'Academic year unavailable'}</span>
+                  <ChevronDown
+                    size={14}
+                    className={`text-slate-300 ml-0.5 transition-transform duration-200 ${
+                      showYearDropdown ? 'rotate-180 text-white' : ''
+                    }`}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-white/20 shadow-2xl py-1.5 z-40 animate-in fade-in slide-in-from-top-2">
-                    <div className="px-3.5 py-1.5 text-[10px] font-extrabold text-sky-400 uppercase tracking-wider border-b border-white/10">
-                      Select Academic Year
+                </button>
+
+                {showYearDropdown && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setShowYearDropdown(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl bg-slate-900/95 backdrop-blur-md border border-white/20 shadow-2xl py-1.5 z-40 animate-in fade-in slide-in-from-top-2">
+                      <div className="px-3.5 py-1.5 text-[10px] font-extrabold text-sky-400 uppercase tracking-wider border-b border-white/10">
+                        Select Academic Year
+                      </div>
+                      {realAcademicYears.map((session) => (
+                        <button
+                          key={session}
+                          type="button"
+                          onClick={() => {
+                            setAcademicYear(session);
+                            setShowYearDropdown(false);
+                            addToast(
+                              'Academic Year Updated',
+                              `Active session changed to ${session}`,
+                              'info'
+                            );
+                          }}
+                          className={`w-full text-left px-3.5 py-2 text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
+                            academicYear === session
+                              ? 'bg-blue-600/40 text-sky-300 font-extrabold'
+                              : 'text-slate-200 hover:bg-white/10'
+                          }`}
+                        >
+                          <span>{session}</span>
+                          {academicYear === session && (
+                            <span className="text-xs text-sky-400 font-black">✓</span>
+                          )}
+                        </button>
+                      ))}
                     </div>
-                    {['2025-26', '2026-27', '2024-25', '2023-24'].map((session) => (
-                      <button
-                        key={session}
-                        type="button"
-                        onClick={() => {
-                          setAcademicYear(session);
-                          setShowYearDropdown(false);
-                          addToast(
-                            'Academic Year Updated',
-                            `Active session changed to ${session}`,
-                            'info'
-                          );
-                        }}
-                        className={`w-full text-left px-3.5 py-2 text-xs font-bold transition-colors flex items-center justify-between cursor-pointer ${
-                          academicYear === session
-                            ? 'bg-blue-600/40 text-sky-300 font-extrabold'
-                            : 'text-slate-200 hover:bg-white/10'
-                        }`}
-                      >
-                        <span>{session}</span>
-                        {academicYear === session && (
-                          <span className="text-xs text-sky-400 font-black">✓</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
         </div>
       </div>
 
@@ -427,6 +465,7 @@ export default function HodDashboard() {
             </span>
             {pendingConsCount > 0 ? (
               <svg
+                aria-hidden="true"
                 className="w-12 h-3 text-rose-500 overflow-visible"
                 viewBox="0 0 48 10"
                 fill="none"
@@ -566,7 +605,7 @@ export default function HodDashboard() {
               {/* Left 50%: Donut Pie Chart with all distinct semester colors */}
               <div className="w-full sm:w-1/2 flex items-center justify-center">
                 <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                  <svg role="img" aria-label="Semester enrollment distribution chart" className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                     <circle
                       cx="50"
                       cy="50"
@@ -633,13 +672,15 @@ export default function HodDashboard() {
 
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 text-xs text-slate-600 font-bold">
-                  <span>Sem</span>
+                  <label htmlFor="hod-semester-select">Sem</label>
                   <select
+                    id="hod-semester-select"
+                    aria-label="Filter sections by semester"
                     value={selectedSemNumber}
                     onChange={(e) => setSelectedSemNumber(Number(e.target.value))}
                     className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none cursor-pointer"
                   >
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
+                    {availableSemesters.map((sem) => (
                       <option key={sem} value={sem}>
                         Sem {sem}
                       </option>
@@ -649,7 +690,8 @@ export default function HodDashboard() {
 
                 <button
                   type="button"
-                  onClick={() => openSectionDetails('B')}
+                  onClick={() => visibleSections[0] && openSectionDetails(visibleSections[0])}
+                  disabled={visibleSections.length === 0}
                   className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                 >
                   <span>View details</span>
@@ -658,108 +700,52 @@ export default function HodDashboard() {
               </div>
             </div>
 
-            {/* 4 Section Cards Grid recreated exactly as reference image */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-3.5 py-4">
-              {/* CSE-A: Soft Sky Blue Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => openSectionDetails('A')}
-                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('A')}
-                className="py-4 px-3 rounded-2xl bg-[#EEF5FF] border border-[#DCE8F9] hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px]"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#DCEBFF] text-blue-500 flex items-center justify-center">
-                  <Users size={17} />
+              {visibleSections.map((section, index) => {
+                const cardStyles = [
+                  'bg-[#EEF5FF] border-[#DCE8F9] text-blue-500',
+                  'bg-[#F5F0FF] border-[#EADBFF] text-purple-500',
+                  'bg-[#EFFAF3] border-[#D6F5E3] text-emerald-500',
+                  'bg-[#FFF6EA] border-[#FEE8CC] text-amber-500',
+                ][index % 4];
+                return (
+                  <div
+                    key={section._id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`View section ${section.code || section.name} details`}
+                    onClick={() => openSectionDetails(section)}
+                    onKeyDown={(e) => e.key === 'Enter' && openSectionDetails(section)}
+                    className={`py-4 px-3 rounded-2xl border hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px] ${cardStyles}`}
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-white/70 flex items-center justify-center">
+                      <Users size={17} />
+                    </div>
+                    <div className="my-1.5">
+                      <span className="block text-xs sm:text-sm font-bold text-slate-800">
+                        {section.code || section.name}
+                      </span>
+                      <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
+                        {section.studentCount}
+                      </span>
+                      <span className="block text-[11px] text-slate-600 font-bold mt-0.5">Students</span>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white text-emerald-600 border border-slate-200/90 text-[11px] font-bold shadow-2xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span>Active</span>
+                    </span>
+                  </div>
+                );
+              })}
+              {visibleSections.length === 0 && (
+                <div className="col-span-full py-10 text-center text-sm text-slate-500">
+                  No sections are available for this semester.
                 </div>
-                <div className="my-1.5">
-                  <span className="block text-xs sm:text-sm font-bold text-slate-800">CSE-A</span>
-                  <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
-                    {countSecA}
-                  </span>
-                  <span className="block text-[11px] text-slate-400 font-medium mt-0.5">Students</span>
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white text-emerald-600 border border-slate-200/90 text-[11px] font-bold shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Active</span>
-                </span>
-              </div>
-
-              {/* CSE-B: Soft Lavender Purple Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => openSectionDetails('B')}
-                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('B')}
-                className="py-4 px-3 rounded-2xl bg-[#F5F0FF] border border-[#EADBFF] hover:border-purple-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px]"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#EEDBFF] text-purple-500 flex items-center justify-center">
-                  <Users size={17} />
-                </div>
-                <div className="my-1.5">
-                  <span className="block text-xs sm:text-sm font-bold text-slate-800">CSE-B</span>
-                  <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
-                    {countSecB}
-                  </span>
-                  <span className="block text-[11px] text-slate-400 font-medium mt-0.5">Students</span>
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white text-emerald-600 border border-slate-200/90 text-[11px] font-bold shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Active</span>
-                </span>
-              </div>
-
-              {/* CSE-C: Soft Mint Emerald Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => openSectionDetails('C')}
-                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('C')}
-                className="py-4 px-3 rounded-2xl bg-[#EFFAF3] border border-[#D6F5E3] hover:border-emerald-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px]"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#D7F5E4] text-emerald-500 flex items-center justify-center">
-                  <Users size={17} />
-                </div>
-                <div className="my-1.5">
-                  <span className="block text-xs sm:text-sm font-bold text-slate-800">CSE-C</span>
-                  <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
-                    {countSecC}
-                  </span>
-                  <span className="block text-[11px] text-slate-400 font-medium mt-0.5">Students</span>
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white text-emerald-600 border border-slate-200/90 text-[11px] font-bold shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Active</span>
-                </span>
-              </div>
-
-              {/* CSE-D: Soft Peach Amber Card */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => openSectionDetails('D')}
-                onKeyDown={(e) => e.key === 'Enter' && openSectionDetails('D')}
-                className="py-4 px-3 rounded-2xl bg-[#FFF6EA] border border-[#FEE8CC] hover:border-amber-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px]"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#FEE9D0] text-amber-500 flex items-center justify-center">
-                  <Users size={17} />
-                </div>
-                <div className="my-1.5">
-                  <span className="block text-xs sm:text-sm font-bold text-slate-800">CSE-D</span>
-                  <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
-                    {countSecD}
-                  </span>
-                  <span className="block text-[11px] text-slate-400 font-medium mt-0.5">Students</span>
-                </div>
-                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-white text-emerald-600 border border-slate-200/90 text-[11px] font-bold shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                  <span>Active</span>
-                </span>
-              </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
       {/* =======================================================================
           BOTTOM ROW: Notice Board (Full Width)
           ======================================================================= */}
@@ -823,7 +809,7 @@ export default function HodDashboard() {
                               </span>
                             )}
                           </div>
-                          <span className="hod-notice-sub text-xs text-slate-500 font-medium truncate mt-0.5">
+                          <span className="hod-notice-sub text-xs text-slate-600 font-medium truncate mt-0.5">
                             {notice.content}
                           </span>
                         </div>
@@ -833,7 +819,7 @@ export default function HodDashboard() {
                         <span className="px-2.5 py-1 rounded-lg bg-slate-200/70 text-slate-700 text-[10px] font-bold">
                           {notice.category}
                         </span>
-                        <span className="hod-notice-date text-xs text-slate-400 font-semibold hidden sm:inline-block">
+                        <span className="hod-notice-date text-xs text-slate-600 font-bold hidden sm:inline-block">
                           {new Date(notice.createdAt).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -846,7 +832,8 @@ export default function HodDashboard() {
                             handleDeleteNotice(notice._id);
                           }}
                           title="Delete notice"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          aria-label="Delete notice"
+                          className="p-1.5 rounded-lg text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -860,7 +847,7 @@ export default function HodDashboard() {
                 <p className="text-sm font-extrabold text-slate-800 m-0">
                   No official notices published yet
                 </p>
-                <p className="text-xs text-slate-500 font-medium m-0 mt-1 max-w-xs">
+                <p className="text-xs text-slate-600 font-medium m-0 mt-1 max-w-xs">
                   Broadcast departmental circulars, exam schedules, and alerts directly to students and faculty.
                 </p>
                 <button
@@ -878,80 +865,81 @@ export default function HodDashboard() {
       </div>
 
       {/* =======================================================================
-          MODALS
+          MODALS (Lazy-loaded on demand)
           ======================================================================= */}
-      {showLedgerModal && (
-        <OfficialClearancesLedgerModal
-          initialTab="considerations"
-          onClose={() => setShowLedgerModal(false)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showLedgerModal && (
+          <OfficialClearancesLedgerModal
+            initialTab="considerations"
+            onClose={() => setShowLedgerModal(false)}
+          />
+        )}
 
-      {showSectionModal && (
-        <SectionOverviewModal
-          initialSection={sectionModalTarget.section}
-          initialSemester={sectionModalTarget.semester}
-          onClose={() => setShowSectionModal(false)}
-          onOpenClassesCentral={() => {
-            setShowSectionModal(false);
-            setShowClassesModal(true);
-          }}
-        />
-      )}
+        {showSectionModal && (
+          <SectionOverviewModal
+            initialSection={sectionModalTarget.section}
+            initialSemester={sectionModalTarget.semester}
+            onClose={() => setShowSectionModal(false)}
+            onOpenClassesCentral={() => {
+              setShowSectionModal(false);
+              setShowClassesModal(true);
+            }}
+          />
+        )}
 
-      {showClassesModal && (
-        <ClassesCurriculumModal
-          onClose={() => setShowClassesModal(false)}
-        />
-      )}
+        {showClassesModal && (
+          <ClassesCurriculumModal
+            onClose={() => setShowClassesModal(false)}
+          />
+        )}
 
-      {showAddFacultyModal && (
-        <AddFacultyModal
-          onClose={() => setShowAddFacultyModal(false)}
-          onSuccess={() => {
-            setShowAddFacultyModal(false);
-            fetchDashboardData();
-            addToast('Faculty Added', 'New faculty member enrolled successfully.', 'success');
-          }}
-        />
-      )}
-
-      {showAddStudentModal && (
-        <AddStudentModal
-          onClose={() => setShowAddStudentModal(false)}
-          onSuccess={() => {
-            setShowAddStudentModal(false);
-            fetchDashboardData();
-            addToast('Student Added', 'New student registered successfully.', 'success');
-          }}
-        />
-      )}
-
-      {/* Pending Approvals Queue Modal matching Image 1 */}
-      {showPendingModal && (
-        <PendingApprovalsModal
-          pendingRequests={[...pendingConsiderations, ...pendingLeaves]}
-          onClose={() => setShowPendingModal(false)}
-          onGoToRequestsCentral={(item) => {
-            setShowPendingModal(false);
-            navigate('/hod/considerations', { state: { targetRequestId: item?._id } });
-          }}
-        />
-      )}
-
-      {/* Send Notice Modal */}
-      {showSendNoticeModal && (
-        <SendNoticeModal
-          onClose={() => setShowSendNoticeModal(false)}
-          onSuccess={(newNotice) => {
-            if (newNotice) {
-              setNotices((prev) => [newNotice, ...prev]);
-            } else {
+        {showAddFacultyModal && (
+          <AddFacultyModal
+            onClose={() => setShowAddFacultyModal(false)}
+            onSuccess={() => {
+              setShowAddFacultyModal(false);
               fetchDashboardData();
-            }
-          }}
-        />
-      )}
+              addToast('Faculty Added', 'New faculty member enrolled successfully.', 'success');
+            }}
+          />
+        )}
+
+        {showAddStudentModal && (
+          <AddStudentModal
+            onClose={() => setShowAddStudentModal(false)}
+            onSuccess={() => {
+              setShowAddStudentModal(false);
+              fetchDashboardData();
+              addToast('Student Added', 'New student registered successfully.', 'success');
+            }}
+          />
+        )}
+
+        {/* Pending Approvals Queue Modal matching Image 1 */}
+        {showPendingModal && (
+          <PendingApprovalsModal
+            pendingRequests={[...pendingConsiderations, ...pendingLeaves]}
+            onClose={() => setShowPendingModal(false)}
+            onGoToRequestsCentral={(item) => {
+              setShowPendingModal(false);
+              navigate('/hod/considerations', { state: { targetRequestId: item?._id } });
+            }}
+          />
+        )}
+
+        {showSendNoticeModal && (
+          <SendNoticeModal
+            onClose={() => setShowSendNoticeModal(false)}
+            onSuccess={(newNotice) => {
+              if (newNotice) {
+                setNotices((prev) => [newNotice, ...prev]);
+              } else {
+                fetchDashboardData();
+              }
+            }}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

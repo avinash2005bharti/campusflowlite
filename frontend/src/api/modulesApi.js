@@ -223,7 +223,28 @@ export const notificationApi = {
   markAllAsRead: async () => {
     return apiClient.patch('/notifications/read-all');
   },
+
+  getConsiderationWindow: async () => {
+    return apiClient.get('/notifications/consideration-window');
+  },
+
+  getVapidPublicKey: async () => {
+    return apiClient.get('/notifications/vapid-public-key');
+  },
+
+  subscribePush: async (subscription) => {
+    return apiClient.post('/notifications/push-subscribe', { subscription });
+  },
+
+  unsubscribePush: async (endpoint) => {
+    return apiClient.post('/notifications/push-unsubscribe', { endpoint });
+  },
+
+  sendReminderNow: async (slot = 'MIDDAY') => {
+    return apiClient.post('/notifications/send-reminder-now', { slot });
+  },
 };
+
 
 export const noticeApi = {
   getNotices: async (params = {}) => {

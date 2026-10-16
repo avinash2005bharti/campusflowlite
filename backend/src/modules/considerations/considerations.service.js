@@ -9,7 +9,7 @@ import Notification from '../../models/Notification.js';
 import AuditLog from '../../models/AuditLog.js';
 import ApiError from '../../utils/ApiError.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
-import { isEndDateGteStartDate, rangesOverlap } from '../../utils/dates.js';
+import { isEndDateGteStartDate, rangesOverlap, isWithinConsiderationWindow } from '../../utils/dates.js';
 import { emitNotification, emitRequestUpdated, emitQueueChanged } from '../../sockets/emitters.js';
 import { sendStatusNotificationEmail } from '../../utils/sendEmail.js';
 
@@ -52,9 +52,18 @@ export const resolveStudentTG = async (student) => {
   return null;
 };
 
-export const createConsideration = async (user, data) => {
+export const createConsideration = async (user, data, options = {}) => {
   if (user.role !== 'STUDENT') {
     throw ApiError.forbidden('Only students can submit consideration requests');
+  }
+
+  // Enforce Consideration Submission Window: 9:00 AM to 4:00 PM IST
+  const clock = options?.clock || new Date();
+  const bypass = Boolean(options?.bypassWindowCheck || process.env.BYPASS_CONSIDERATION_WINDOW === 'true');
+  if (!bypass && !isWithinConsiderationWindow(clock)) {
+    throw ApiError.badRequest(
+      'Consideration requests can only be submitted between 9:00 AM and 4:00 PM IST. The submission window is currently closed.'
+    );
   }
 
   const student = await Student.findOne({ user: user.id });

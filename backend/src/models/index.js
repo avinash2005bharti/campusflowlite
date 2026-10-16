@@ -12,6 +12,7 @@ import AuditLog from './AuditLog.js';
 import RefreshToken from './RefreshToken.js';
 import Otp from './Otp.js';
 import Notice from './Notice.js';
+import PushSubscription from './PushSubscription.js';
 
 export {
   User,
@@ -28,6 +29,7 @@ export {
   RefreshToken,
   Otp,
   Notice,
+  PushSubscription,
 };
 
 export default {
@@ -44,4 +46,7 @@ export default {
   AuditLog,
   RefreshToken,
   Otp,
+  Notice,
+  PushSubscription,
 };
+

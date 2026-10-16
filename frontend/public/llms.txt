@@ -1,0 +1,10 @@
+# CampusFlow Lite
+
+> Academic Consideration, OD Clearances & Student Leave Management System for Oriental Institute of Science & Technology (OIST).
+
+## System Modules & Routes
+- [Tutor Guardian Workspace](http://localhost:5173/tg)
+- [HOD Administration Portal](http://localhost:5173/hod/dashboard)
+- [Student Application Dashboard](http://localhost:5173/student/dashboard)
+- [Faculty / Teacher Portal](http://localhost:5173/teacher/dashboard)
+- [Institutional Documentation](http://localhost:5173/)

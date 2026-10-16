@@ -45,6 +45,18 @@ const envSchema = z.object({
     .default(false),
   BREVO_API_KEY: z.string().optional().default(''),
   EMAIL_FROM: z.string().optional().default('no-reply@campusflow.edu'),
+
+  // PWA Web Push Configuration
+  VAPID_PUBLIC_KEY: z.string().default(process.env.VAPID_PUBLIC_KEY || 'BDqRWOUQzdiBFBsdSW64Ef84_oK3QfIuS93v51rhpu6ELYAQubbhXAtTpHmN6nwBojyFESpmR_t7LPp7k-d4hEk'),
+  VAPID_PRIVATE_KEY: z.string().default(process.env.VAPID_PRIVATE_KEY || 'h_HU9uKTKqti7MazV18jpMCp7yN7UG9DgazvhvzsFEM'),
+  VAPID_SUBJECT: z.string().default(process.env.VAPID_SUBJECT || 'mailto:admin@campusflow.edu'),
+
+  // Consideration & Attendance Review Reminders
+  // Midday: 1:00 PM IST (between 12:30 PM and 1:30 PM)
+  REMINDER_MIDDAY_CRON: z.string().default(process.env.REMINDER_MIDDAY_CRON || '0 13 * * *'),
+  // Afternoon: 4:00 PM IST (window close, between 4:00 PM and 4:30 PM)
+  REMINDER_AFTERNOON_CRON: z.string().default(process.env.REMINDER_AFTERNOON_CRON || '0 16 * * *'),
+  BYPASS_CONSIDERATION_WINDOW: z.string().optional().default('false'),
 });
 
 const parsed = envSchema.safeParse(process.env);

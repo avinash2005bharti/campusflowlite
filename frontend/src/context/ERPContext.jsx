@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { io } from 'socket.io-client';
 import {
   authApi,
@@ -9,7 +9,11 @@ import {
   uploadApi,
 } from '../api';
 
-const ERPContext = createContext(null);
+// Singleton Context instance preserved across Vite HMR reloads to prevent provider desync
+const ERPContext =
+  typeof window !== 'undefined'
+    ? (window.__CAMPUSFLOW_ERP_CONTEXT__ ||= createContext(null))
+    : createContext(null);
 
 export function ERPProvider({ children }) {
   const [token, setToken] = useState(() => getAuthToken());
@@ -189,6 +193,32 @@ export function ERPProvider({ children }) {
     socketInstance.on('new_notification', (data) => {
       addToast(data.title, data.message, data.type === 'ESCALATION' ? 'warning' : 'info');
       refreshNotifications();
+
+      // If app is in background, show system notification
+      if (document.hidden && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: data.title,
+          body: data.message,
+          url: data.link,
+        });
+      }
+    });
+
+    socketInstance.on('attendance_reminder', (data) => {
+      addToast(data.title, data.message, 'warning');
+      refreshNotifications();
+
+      // Show system notification via Service Worker
+      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'SHOW_NOTIFICATION',
+          title: data.title,
+          body: data.message,
+          url: data.link || '/tg/attendance',
+          tag: `attendance-${data.slot || 'reminder'}`,
+        });
+      }
     });
 
     socketInstance.on('request_updated', (data) => {
@@ -205,6 +235,116 @@ export function ERPProvider({ children }) {
       socketInstance.disconnect();
     };
   }, [isAuthenticated, addToast, refreshNotifications]);
+
+  // Service Worker & PWA Web Push state
+  const [pwaPushEnabled, setPwaPushEnabled] = useState(false);
+  const [pwaPushSupported, setPwaPushSupported] = useState(() => {
+    return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
+  });
+
+  // Register service worker on initial mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register('/service-worker.js')
+        .then(async (reg) => {
+          if ('PushManager' in window) {
+            const existingSub = await reg.pushManager.getSubscription();
+            if (existingSub) {
+              setPwaPushEnabled(true);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Service worker registration failed:', err.message);
+        });
+    }
+  }, []);
+
+  // Helper to convert VAPID public key
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  // Enable PWA push reminders for faculty / TG / HOD
+  const enablePWAReminders = useCallback(async () => {
+    if (!pwaPushSupported) {
+      addToast('Not Supported', 'Web Push notifications are not supported in this browser.', 'warning');
+      return false;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        addToast('Permission Denied', 'Please allow notifications in browser settings to receive PWA reminders.', 'warning');
+        return false;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+      const vapidRes = await notificationApi.getVapidPublicKey();
+      const vapidKey = vapidRes?.data?.publicKey || vapidRes?.publicKey;
+
+      if (!vapidKey) {
+        throw new Error('VAPID public key unavailable from server.');
+      }
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+      }
+
+      const rawJson = sub.toJSON();
+      await notificationApi.subscribePush({
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: rawJson.keys?.p256dh,
+          auth: rawJson.keys?.auth,
+        },
+      });
+
+      setPwaPushEnabled(true);
+      addToast(
+        'PWA Reminders Active',
+        'You will now receive automatic notifications at 12:30-1:30 PM & 4:00-4:30 PM to review considerations & update attendance.',
+        'success'
+      );
+      return true;
+    } catch (err) {
+      console.warn('PWA push reminder subscription unavailable:', err.message);
+      return false;
+    }
+  }, [pwaPushSupported, addToast]);
+
+  // Trigger immediate test reminder (for faculty / TG / HOD testing)
+  const sendTestReminder = useCallback(async (slot = 'MIDDAY') => {
+    try {
+      const res = await notificationApi.sendReminderNow(slot);
+      addToast('Test Reminder Dispatched', `Sent ${slot} reminder to all TGs and HODs.`, 'success');
+      return res;
+    } catch (err) {
+      addToast('Failed to Send Reminder', err.message || 'Cannot trigger test reminder.', 'danger');
+    }
+  }, [addToast]);
+
+  // Auto-subscribe if user is TG or HOD and notification permission was previously granted
+  useEffect(() => {
+    if (isAuthenticated && currentUser && ['TEACHER', 'HOD', 'ADMIN'].includes(currentUser.role)) {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        enablePWAReminders().catch(() => {});
+      }
+    }
+  }, [isAuthenticated, currentUser, enablePWAReminders]);
+
 
   // Auth Actions
   const login = async ({ email, password }) => {
@@ -287,6 +427,10 @@ export function ERPProvider({ children }) {
         login,
         logout,
         switchRole,
+        pwaPushEnabled,
+        pwaPushSupported,
+        enablePWAReminders,
+        sendTestReminder,
       }}
     >
       {children}
@@ -302,4 +446,5 @@ export function useERP() {
   return context;
 }
 
-export default ERPContext;
+export { ERPContext };
+export default ERPProvider;

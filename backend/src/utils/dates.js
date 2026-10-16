@@ -75,6 +75,49 @@ export const rangesOverlap = (startA, endA, startB, endB) => {
   return startA <= endB && endA >= startB;
 };
 
+/**
+ * Get current time components in IST (Asia/Kolkata)
+ * @param {Date} [date=new Date()]
+ * @returns {{ hour: number, minute: number, second: number }}
+ */
+export const getISTTime = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    hour12: false,
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+  });
+  const parts = formatter.formatToParts(date);
+  let hour = 0;
+  let minute = 0;
+  let second = 0;
+  for (const part of parts) {
+    if (part.type === 'hour') hour = parseInt(part.value, 10);
+    if (part.type === 'minute') minute = parseInt(part.value, 10);
+    if (part.type === 'second') second = parseInt(part.value, 10);
+  }
+  // If midnight hour12:false returns 24 in some environments, normalize to 0
+  if (hour === 24) hour = 0;
+  return { hour, minute, second };
+};
+
+/**
+ * Check if the given time is within the student consideration application window
+ * Allowed window: 9:00 AM to 4:00 PM IST (09:00 to 16:00 inclusive)
+ * 9:00 AM = 9 * 60 = 540 minutes
+ * 4:00 PM = 16 * 60 = 960 minutes
+ * @param {Date} [date=new Date()]
+ * @returns {boolean}
+ */
+export const isWithinConsiderationWindow = (date = new Date()) => {
+  const { hour, minute } = getISTTime(date);
+  const minutesFromMidnight = hour * 60 + minute;
+  const startMinutes = 9 * 60; // 09:00 AM
+  const endMinutes = 16 * 60;  // 04:00 PM (16:00)
+  return minutesFromMidnight >= startMinutes && minutesFromMidnight <= endMinutes;
+};
+
 export default {
   isValidDateStr,
   getTodayIST,
@@ -82,4 +125,7 @@ export default {
   isEndDateGteStartDate,
   isExcessivelyBackdated,
   rangesOverlap,
+  getISTTime,
+  isWithinConsiderationWindow,
 };
+

@@ -30,10 +30,10 @@ export default function SectionOverviewModal({
   }, []);
 
   const sectionOptions = [
-    { id: 'A', code: 'CSE-A', label: 'CSE-A', bg: 'bg-[#F0F6FE] border-blue-100' },
-    { id: 'B', code: 'CSE-B', label: 'CSE-B', bg: 'bg-[#FAF5FF] border-purple-100' },
-    { id: 'C', code: 'CSE-C', label: 'CSE-C', bg: 'bg-[#F0FDF4] border-emerald-100' },
-    { id: 'D', code: 'CSE-D', label: 'CSE-D', bg: 'bg-[#FFF7ED] border-amber-100' },
+    { id: 'A', code: 'CSE-A', label: 'CSE-A', bgColor: '#F0F6FE', borderColor: '#BFDBFE' },
+    { id: 'B', code: 'CSE-B', label: 'CSE-B', bgColor: '#FAF5FF', borderColor: '#E9D5FF' },
+    { id: 'C', code: 'CSE-C', label: 'CSE-C', bgColor: '#F0FDF4', borderColor: '#BBF7D0' },
+    { id: 'D', code: 'CSE-D', label: 'CSE-D', bgColor: '#FFF7ED', borderColor: '#FED7AA' },
   ];
 
   const semesterStudents = students.filter((s) => {
@@ -117,19 +117,73 @@ export default function SectionOverviewModal({
                 key={opt.id}
                 type="button"
                 onClick={() => setSelectedSection(opt.id)}
-                className={`p-3.5 rounded-2xl text-center border-2 transition-all cursor-pointer ${
+                style={
                   isSelected
-                    ? 'border-blue-600 bg-white shadow-xs ring-2 ring-blue-100'
-                    : `${opt.bg} hover:border-slate-300`
-                }`}
+                    ? {
+                        backgroundColor: '#2563EB',
+                        borderColor: '#1D4ED8',
+                        color: '#FFFFFF',
+                        boxShadow: '0 8px 20px -3px rgba(37, 99, 235, 0.45), 0 0 0 3px rgba(147, 197, 253, 0.6)',
+                        transform: 'translateY(-2px)',
+                      }
+                    : {
+                        backgroundColor: opt.bgColor,
+                        borderColor: opt.borderColor,
+                        color: '#0F172A',
+                      }
+                }
+                className="p-3.5 rounded-2xl text-center border-2 transition-all cursor-pointer shadow-xs"
               >
-                <span className="block text-sm font-black text-slate-900">{opt.label}</span>
-                <span className="block text-xs font-semibold text-slate-600 mt-0.5">
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '14px',
+                    fontWeight: '900',
+                    color: isSelected ? '#FFFFFF' : '#0F172A',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  {opt.label}
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    color: isSelected ? '#DBEAFE' : '#64748B',
+                    marginTop: '2px',
+                  }}
+                >
                   {count} Students
                 </span>
-                {isSelected && (
-                  <span className="inline-block mt-1 text-[10px] font-extrabold text-blue-600">
-                    Selected
+                {isSelected ? (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      marginTop: '6px',
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      fontSize: '10px',
+                      fontWeight: '800',
+                      backgroundColor: '#FFFFFF',
+                      color: '#1D4ED8',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                    }}
+                  >
+                    ✓ Selected
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      marginTop: '6px',
+                      fontSize: '10px',
+                      visibility: 'hidden',
+                    }}
+                  >
+                    &nbsp;
                   </span>
                 )}
               </button>

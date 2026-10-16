@@ -1,6 +1,8 @@
 import Notification from '../../models/Notification.js';
 import { parsePagination, buildPaginationMeta } from '../../utils/pagination.js';
 import ApiError from '../../utils/ApiError.js';
+import { getISTTime, isWithinConsiderationWindow } from '../../utils/dates.js';
+import env from '../../config/env.js';
 
 export const getUserNotifications = async (userId, query) => {
   const { page, limit, skip } = parsePagination(query);
@@ -47,8 +49,76 @@ export const markAllAsRead = async (userId) => {
   return { modifiedCount: result.modifiedCount };
 };
 
+export const savePushSubscription = async (userId, subscription, userAgent = '') => {
+  const { default: PushSubscription } = await import('../../models/PushSubscription.js');
+  if (!subscription || !subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+    throw ApiError.badRequest('Invalid push subscription format');
+  }
+
+  const updated = await PushSubscription.findOneAndUpdate(
+    { endpoint: subscription.endpoint },
+    {
+      user: userId,
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: subscription.keys.p256dh,
+        auth: subscription.keys.auth,
+      },
+      userAgent,
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  return { success: true, subscriptionId: updated._id };
+};
+
+export const removePushSubscription = async (userId, endpoint) => {
+  const { default: PushSubscription } = await import('../../models/PushSubscription.js');
+  if (!endpoint) {
+    throw ApiError.badRequest('Endpoint is required to remove subscription');
+  }
+
+  await PushSubscription.deleteOne({ user: userId, endpoint });
+  return { success: true };
+};
+
+export const getConsiderationWindowStatus = () => {
+  const now = new Date();
+  const time = getISTTime(now);
+  const isOpen = isWithinConsiderationWindow(now);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const currentTimeIST = `${pad(time.hour)}:${pad(time.minute)}:${pad(time.second)}`;
+
+  return {
+    isOpen,
+    windowStart: '09:00',
+    windowEnd: '16:00',
+    currentTimeIST,
+    timezone: 'Asia/Kolkata',
+    message: isOpen
+      ? 'Consideration application window is OPEN (9:00 AM - 4:00 PM IST).'
+      : 'Consideration application window is CLOSED. Submissions are only accepted between 9:00 AM and 4:00 PM IST.',
+  };
+};
+
+export const triggerReminderManually = async (slot = 'MIDDAY', user) => {
+  if (!['HOD', 'ADMIN', 'TEACHER'].includes(user.role)) {
+    throw ApiError.forbidden('Only faculty or administrators can trigger attendance reminders');
+  }
+
+  const { runAttendanceReminder } = await import('../../jobs/reminder.job.js');
+  return runAttendanceReminder(slot);
+};
+
 export default {
   getUserNotifications,
   markAsRead,
   markAllAsRead,
+  savePushSubscription,
+  removePushSubscription,
+  getConsiderationWindowStatus,
+  triggerReminderManually,
 };
+
+

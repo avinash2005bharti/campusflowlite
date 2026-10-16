@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useERP } from '../../context/ERPContext.jsx';
-import { considerationApi, masterDataApi } from '../../api';
+import { considerationApi, masterDataApi, notificationApi } from '../../api';
 import {
   X,
   Sparkles,
@@ -15,8 +15,37 @@ import {
   Check,
   Plus,
   Trash2,
+  Lock,
 } from 'lucide-react';
 import { DocumentUploader } from '../common';
+
+// Helper to determine if current time is within 9:00 AM - 4:00 PM IST
+const checkWindowStatus = () => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      hour12: false,
+      hour: 'numeric',
+      minute: 'numeric',
+    });
+    const parts = formatter.formatToParts(new Date());
+    let h = 0;
+    let m = 0;
+    for (const part of parts) {
+      if (part.type === 'hour') h = parseInt(part.value, 10);
+      if (part.type === 'minute') m = parseInt(part.value, 10);
+    }
+    if (h === 24) h = 0;
+    const currentMins = h * 60 + m;
+    const openMins = 9 * 60; // 09:00 AM
+    const closeMins = 16 * 60; // 04:00 PM
+    const isOpen = currentMins >= openMins && currentMins <= closeMins;
+    const timeFormatted = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} IST`;
+    return { isOpen, timeFormatted };
+  } catch {
+    return { isOpen: true, timeFormatted: 'IST' };
+  }
+};
 
 export default function RequestConsiderationModal({ onClose, onSuccess }) {
   const { currentUser, addToast } = useERP();
@@ -31,6 +60,24 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
   const [lecturesCount, setLecturesCount] = useState(1);
   const [description, setDescription] = useState('');
   const [attachment, setAttachment] = useState(null);
+
+  // Consideration application window (9:00 AM - 4:00 PM IST)
+  const [windowStatus, setWindowStatus] = useState(() => checkWindowStatus());
+
+  useEffect(() => {
+    notificationApi
+      .getConsiderationWindow()
+      .then((res) => {
+        const data = res?.data || res;
+        if (data && typeof data.isOpen === 'boolean') {
+          setWindowStatus({
+            isOpen: data.isOpen,
+            timeFormatted: `${data.currentTimeIST} IST`,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Group Members state
   const [allStudents, setAllStudents] = useState([]);
@@ -127,6 +174,13 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
+
+    if (!windowStatus.isOpen) {
+      setFormError(
+        `Consideration requests can only be submitted between 9:00 AM and 4:00 PM IST. Current time: ${windowStatus.timeFormatted}. Submissions are currently closed.`
+      );
+      return;
+    }
 
     const trimmedTitle = eventTitle.trim();
     if (!trimmedTitle || trimmedTitle.length < 3) {
@@ -236,6 +290,62 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-3">
+          {/* Consideration Timing Window Indicator (9:00 AM - 4:00 PM IST) */}
+          <div
+            className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 text-xs transition-all ${
+              windowStatus.isOpen
+                ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                : 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-2xs'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                  windowStatus.isOpen
+                    ? 'bg-white border-emerald-200 text-emerald-600'
+                    : 'bg-white border-amber-300 text-amber-700'
+                }`}
+              >
+                {windowStatus.isOpen ? (
+                  <Clock size={17} className="animate-pulse" />
+                ) : (
+                  <Lock size={17} />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-xs">
+                    {windowStatus.isOpen
+                      ? 'Consideration Window Active (9:00 AM – 4:00 PM IST)'
+                      : 'Consideration Submissions Closed (9:00 AM – 4:00 PM Only)'}
+                  </span>
+                  <span
+                    className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      windowStatus.isOpen
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-amber-600 text-white'
+                    }`}
+                  >
+                    {windowStatus.isOpen ? 'Window Open' : 'Window Closed'}
+                  </span>
+                </div>
+                <p className="text-[11px] opacity-85 m-0 mt-0.5">
+                  {windowStatus.isOpen
+                    ? 'Students are permitted to submit attendance consideration requests now.'
+                    : 'Students can only apply between 9:00 AM and 4:00 PM IST. The submission portal opens at 9:00 AM.'}
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 text-right pl-2 border-l border-slate-200/60 hidden sm:block">
+              <span className="text-[10px] text-slate-500 font-bold block uppercase tracking-wider">
+                Current Time
+              </span>
+              <span className="font-mono text-xs font-black text-slate-800">
+                {windowStatus.timeFormatted}
+              </span>
+            </div>
+          </div>
+
           {formError && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 flex items-start gap-2">
               <AlertCircle size={16} className="shrink-0 mt-0.5" />
@@ -681,10 +791,19 @@ export default function RequestConsiderationModal({ onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              disabled={submitting}
-              className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-60 cursor-pointer"
+              disabled={submitting || !windowStatus.isOpen}
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all flex items-center gap-2 ${
+                !windowStatus.isOpen
+                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed border border-slate-300'
+                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white cursor-pointer'
+              }`}
             >
-              {submitting ? (
+              {!windowStatus.isOpen ? (
+                <>
+                  <Lock size={14} className="shrink-0" />
+                  <span>Submissions Closed (9:00 AM – 4:00 PM Only)</span>
+                </>
+              ) : submitting ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span>Submitting Request...</span>

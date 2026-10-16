@@ -5,19 +5,35 @@
     <link rel="icon" type="image/png" href="/iit.png" />
     <link rel="apple-touch-icon" href="/iit.png" />
     <link rel="manifest" href="/manifest.json" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="CampusFlow Lite — Academic Consideration, OD Clearances & Student Leave Management System for Oriental Institute of Science & Technology (OIST)." />
     <meta name="theme-color" content="#1D4ED8" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="CampusFlow" />
     <title>CampusFlow Lite — Consideration & Leave Management System</title>
-    <!-- Google Fonts: Manrope (Headlines & Numbers) & Inter (Body & UI) -->
+    <!-- Google Fonts: Preconnect & Asynchronous Non-Render-Blocking Stylesheet -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- High-Priority LCP Banner Preload -->
+    <link rel="preload" as="image" href="/oriental.png" fetchpriority="high" />
     <link
+      rel="preload"
+      as="style"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
-      rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>

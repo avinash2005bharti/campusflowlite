@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { dashboardApi, considerationApi, leaveApi } from '../../api';
@@ -16,7 +16,8 @@ import {
   User,
   KeyRound,
 } from 'lucide-react';
-import StudentAccountSettingsModal from '../../components/modals/StudentAccountSettingsModal.jsx';
+
+const StudentAccountSettingsModal = lazy(() => import('../../components/modals/StudentAccountSettingsModal.jsx'));
 
 export default function StudentDashboard() {
   const { currentUser, openModal } = useERP();
@@ -193,9 +194,14 @@ export default function StudentDashboard() {
           <div className="w-8 h-8 rounded-lg bg-white/90 border border-[#C7D2FE] text-purple-600 flex items-center justify-center shrink-0">
             <Sparkles size={18} />
           </div>
-          <span className="text-sm sm:text-base font-extrabold text-[#1E40AF] group-hover:text-blue-900 transition-colors">
-            Request Consideration
-          </span>
+          <div className="text-left">
+            <span className="text-sm sm:text-base font-extrabold text-[#1E40AF] group-hover:text-blue-900 transition-colors block leading-tight">
+              Request Consideration
+            </span>
+            <span className="text-[10px] text-blue-600 font-bold block mt-0.5">
+              9:00 AM – 4:00 PM IST
+            </span>
+          </div>
         </button>
 
         {/* Button 2: Apply Leave */}
@@ -453,9 +459,11 @@ export default function StudentDashboard() {
       </div>
 
       {showAccountSettingsModal && (
-        <StudentAccountSettingsModal
-          onClose={() => setShowAccountSettingsModal(false)}
-        />
+        <Suspense fallback={null}>
+          <StudentAccountSettingsModal
+            onClose={() => setShowAccountSettingsModal(false)}
+          />
+        </Suspense>
       )}
     </div>
   );

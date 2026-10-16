@@ -198,6 +198,59 @@ const formatStatus = (status) => {
   return map[status] || status || 'Pending';
 };
 
+const applyDateFilter = (filter, query) => {
+  const dateConditions = [];
+  if (query.date) {
+    dateConditions.push({
+      $or: [
+        { startDate: query.date },
+        { $and: [{ startDate: { $lte: query.date } }, { endDate: { $gte: query.date } }] },
+      ],
+    });
+  } else if (query.from && query.to) {
+    dateConditions.push({
+      $or: [
+        { startDate: { $gte: query.from, $lte: query.to } },
+        { endDate: { $gte: query.from, $lte: query.to } },
+        { $and: [{ startDate: { $lte: query.from } }, { endDate: { $gte: query.to } }] },
+      ],
+    });
+  } else if (query.from) {
+    dateConditions.push({
+      $or: [
+        { startDate: { $gte: query.from } },
+        { endDate: { $gte: query.from } },
+      ],
+    });
+  } else if (query.to) {
+    dateConditions.push({
+      $or: [
+        { startDate: { $lte: query.to } },
+      ],
+    });
+  }
+
+  if (dateConditions.length > 0) {
+    if (filter.$and) {
+      filter.$and.push(...dateConditions);
+    } else {
+      filter.$and = [...dateConditions];
+    }
+  }
+};
+
+const applyStatusFilter = (filter, query, defaultToApproved = false) => {
+  if (query.status) {
+    if (query.status.includes(',')) {
+      filter.status = { $in: query.status.split(',').map((s) => s.trim().toUpperCase()) };
+    } else {
+      filter.status = query.status.toUpperCase();
+    }
+  } else if (query.approvedOnly === 'true' || query.approvedOnly === true || defaultToApproved) {
+    filter.status = { $in: ['APPROVED_BY_HOD', 'APPROVED'] };
+  }
+};
+
 export const getConsiderationsReport = async (query = {}, user = null) => {
   const { page, limit, skip } = parsePagination(query);
   const filter = {};
@@ -231,15 +284,9 @@ export const getConsiderationsReport = async (query = {}, user = null) => {
     }
   }
 
-  if (query.status) filter.status = query.status.toUpperCase();
+  applyStatusFilter(filter, query, false);
   if (query.type && query.type !== 'ALL') filter.eventType = query.type.toUpperCase();
-  if (query.from && query.to) {
-    filter.startDate = { $gte: query.from, $lte: query.to };
-  } else if (query.from) {
-    filter.startDate = { $gte: query.from };
-  } else if (query.to) {
-    filter.startDate = { $lte: query.to };
-  }
+  applyDateFilter(filter, query);
 
   const [requests, total] = await Promise.all([
     ConsiderationRequest.find(filter)
@@ -298,16 +345,10 @@ export const getLeavesReport = async (query = {}, user = null) => {
     }
   }
 
-  if (query.status) filter.status = query.status.toUpperCase();
+  applyStatusFilter(filter, query, false);
   if (query.role) filter.applicantRole = query.role.toUpperCase();
   if (query.type && query.type !== 'ALL') filter.leaveType = query.type.toUpperCase();
-  if (query.from && query.to) {
-    filter.startDate = { $gte: query.from, $lte: query.to };
-  } else if (query.from) {
-    filter.startDate = { $gte: query.from };
-  } else if (query.to) {
-    filter.startDate = { $lte: query.to };
-  }
+  applyDateFilter(filter, query);
 
   const [leaves, total] = await Promise.all([
     LeaveApplication.find(filter)
@@ -337,15 +378,9 @@ export const getLeavesReport = async (query = {}, user = null) => {
 
 export const exportConsiderationsToExcel = async (query, res) => {
   const filter = {};
-  if (query.status) filter.status = query.status.toUpperCase();
+  applyStatusFilter(filter, query, true);
   if (query.type && query.type !== 'ALL') filter.eventType = query.type.toUpperCase();
-  if (query.from && query.to) {
-    filter.startDate = { $gte: query.from, $lte: query.to };
-  } else if (query.from) {
-    filter.startDate = { $gte: query.from };
-  } else if (query.to) {
-    filter.startDate = { $lte: query.to };
-  }
+  applyDateFilter(filter, query);
 
   const requests = await ConsiderationRequest.find(filter)
     .populate({
@@ -421,16 +456,10 @@ export const exportConsiderationsToExcel = async (query, res) => {
 
 export const exportLeavesToExcel = async (query, res) => {
   const filter = {};
-  if (query.status) filter.status = query.status.toUpperCase();
+  applyStatusFilter(filter, query, true);
   if (query.role) filter.applicantRole = query.role.toUpperCase();
   if (query.type && query.type !== 'ALL') filter.leaveType = query.type.toUpperCase();
-  if (query.from && query.to) {
-    filter.startDate = { $gte: query.from, $lte: query.to };
-  } else if (query.from) {
-    filter.startDate = { $gte: query.from };
-  } else if (query.to) {
-    filter.startDate = { $lte: query.to };
-  }
+  applyDateFilter(filter, query);
 
   const leaves = await LeaveApplication.find(filter)
     .populate('applicant', 'name email role phone')

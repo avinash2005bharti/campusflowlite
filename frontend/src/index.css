@@ -7041,24 +7041,19 @@ button:disabled:active,
 }
 
 .hod-section-tab-btn.active {
-  border-color: #2563EB;
-  background-color: #EFF6FF;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: #1D4ED8 !important;
+  background-color: #2563EB !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 8px 20px -3px rgba(37, 99, 235, 0.45), 0 0 0 3px rgba(147, 197, 253, 0.6) !important;
+  transform: translateY(-2px);
 }
 
-.hod-section-tab-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #0F172A;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
+.hod-section-tab-btn.active .hod-section-tab-title {
+  color: #FFFFFF !important;
 }
 
-.hod-section-tab-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748B;
-  margin-top: 2px;
+.hod-section-tab-btn.active .hod-section-tab-count {
+  color: #DBEAFE !important;
 }
 
 .hod-student-details-box {
@@ -7673,14 +7668,21 @@ button:disabled:active,
   right: 0;
   width: 400px;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - var(--header-height) - 16px);
   background-color: #ffffff;
   border-radius: 1.25rem;
   border: 1px solid var(--slate-200);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  overscroll-behavior: contain;
   z-index: 1000;
   transform-origin: top right;
   animation: notifDropdownIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notification-dropdown-panel > .max-h-96 {
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 
 @keyframes notifDropdownIn {

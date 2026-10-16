@@ -4,6 +4,7 @@ import env from './config/env.js';
 import connectDB from './config/db.js';
 import { initSocketServer } from './sockets/index.js';
 import { initEscalationJob } from './jobs/escalation.job.js';
+import { initReminderJob } from './jobs/reminder.job.js';
 
 const startServer = async () => {
   // Connect to Database
@@ -17,6 +18,9 @@ const startServer = async () => {
 
   // Initialize Escalation Cron Job
   initEscalationJob();
+
+  // Initialize Attendance & Consideration Reminder Cron Job
+  initReminderJob();
 
   const PORT = env.PORT || 5000;
   httpServer.listen(PORT, () => {

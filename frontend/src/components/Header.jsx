@@ -30,6 +30,9 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
     refreshNotifications,
     logout,
     switchRole,
+    pwaPushEnabled,
+    enablePWAReminders,
+    sendTestReminder,
   } = useERP();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -188,6 +191,46 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                     </button>
                   )}
                 </div>
+
+                {/* PWA Attendance Reminder Controls for Faculty / TGs / HODs */}
+                {(isFaculty || ['tg', 'hod', 'admin'].includes(currentRole)) && (
+                  <div className="p-3 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 border-b border-blue-100 flex items-center justify-between gap-2.5 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0">⏰</span>
+                      <div className="min-w-0">
+                        <span className="font-extrabold text-blue-950 block text-[11px] leading-tight">
+                          Attendance & Consideration Reminders
+                        </span>
+                        <span className="text-[10px] text-blue-700 block opacity-85 leading-tight mt-0.5">
+                          Daily at 12:30–1:30 PM & 4:00–4:30 PM IST
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {!pwaPushEnabled ? (
+                        <button
+                          type="button"
+                          onClick={() => enablePWAReminders()}
+                          className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] shadow-2xs transition-colors cursor-pointer"
+                        >
+                          Enable PWA Alert
+                        </button>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                          ✓ Active
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => sendTestReminder('MIDDAY')}
+                        className="px-2 py-1 rounded-lg bg-white border border-blue-200 hover:bg-blue-100 text-blue-800 font-bold text-[10px] transition-colors cursor-pointer"
+                        title="Send test reminder now"
+                      >
+                        Test
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
                   {notifications.length === 0 ? (
