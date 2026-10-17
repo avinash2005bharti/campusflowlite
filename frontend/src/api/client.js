@@ -2,8 +2,14 @@ import axios from 'axios';
 
 let currentToken = localStorage.getItem('campusflow_token') || null;
 
+const apiBaseUrl =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.VITE_BACKEND_URL
+    ? `${import.meta.env.VITE_BACKEND_URL.replace(/\/+$/, '')}/api/v1`
+    : '/api/v1');
+
 export const apiClient = axios.create({
-  baseURL: '/api/v1',
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },
