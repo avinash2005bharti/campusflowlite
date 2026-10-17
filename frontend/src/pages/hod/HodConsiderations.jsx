@@ -23,7 +23,31 @@ import {
   XCircle,
   CheckCircle2,
   Users,
+  Printer,
+  Filter,
+  Layers,
+  CheckCheck,
+  FileSpreadsheet,
 } from 'lucide-react';
+
+const GoogleSheetsLogo = () => (
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" fill="#0F9D58"/>
+    <path d="M14 2v6h6" fill="#87CEAB"/>
+    <rect x="7" y="11" width="10" height="7" rx="0.5" fill="#E8F5E9"/>
+    <line x1="7" y1="14.5" x2="17" y2="14.5" stroke="#0F9D58" strokeWidth="1"/>
+    <line x1="12" y1="11" x2="12" y2="18" stroke="#0F9D58" strokeWidth="1"/>
+  </svg>
+);
+
+const ExcelLogo = () => (
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none">
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" fill="#107C41"/>
+    <path d="M14 2v6h6" fill="#33C481"/>
+    <rect x="5.5" y="9" width="7" height="9" rx="1" fill="#0E5C2F"/>
+    <path d="M7 11.5l4 4m0-4l-4 4" stroke="white" strokeWidth="1.6" strokeLinecap="round"/>
+  </svg>
+);
 
 function formatDateSlash(dateStr) {
   if (!dateStr) return '10/12/2026';
@@ -479,10 +503,46 @@ export default function HodConsiderations() {
         </p>
       </div>
 
-      {/* Controls Bar with clean pill buttons matching screenshot */}
+      {/* 1. Tabs Bar ON TOP with icons and counts */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+        {[
+          { id: 'ALL', label: 'All Requests', count: totalCount, icon: Layers },
+          { id: 'AWAITING_HOD', label: 'Awaiting HOD Sign-off', count: awaitingCount, icon: Clock },
+          { id: 'BYPASS_QUEUE', label: 'Direct Bypass Queue', count: bypassCount, isZap: true, icon: Zap },
+          { id: 'LEAVES', label: 'Leave Applications', count: leavesCount, icon: Calendar },
+          { id: 'CONSIDERATIONS', label: 'Considerations', count: considerationsCount, icon: CheckCircle2 },
+          { id: 'CLEARED', label: 'Cleared & Synced', count: clearedCount, icon: CheckCheck },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          const TabIcon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shadow-2xs ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              {tab.isZap ? (
+                <Zap size={13} className={isActive ? 'text-white fill-white' : 'text-amber-500 fill-amber-500 shrink-0'} />
+              ) : TabIcon ? (
+                <TabIcon size={13} className={isActive ? 'text-white' : 'text-slate-400 shrink-0'} />
+              ) : null}
+              <span>{tab.label}</span>
+              <span className="font-bold">({tab.count})</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 2. Controls & Actions Bar BELOW Tabs - with official logos and compact text */}
       <div className="flex flex-wrap items-center gap-2 pt-0.5">
-        {/* Semester Pill */}
-        <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs text-xs font-semibold text-slate-600">
+        {/* Semester Filter Pill */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-slate-200 shadow-2xs text-xs font-semibold text-slate-600">
+          <Filter size={12} className="text-blue-600 shrink-0" />
           <span>Semester:</span>
           <select
             value={semesterFilter}
@@ -502,16 +562,18 @@ export default function HodConsiderations() {
           <ChevronDown size={12} className="text-blue-600 -ml-1 pointer-events-none" />
         </div>
 
-        {/* Clearances Ledger */}
+        {/* Clearances Ledger with ledger icon */}
         <button
           type="button"
           onClick={() => setShowLedgerModal(true)}
-          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          title="Open Official Clearances Ledger"
         >
-          Clearances Ledger
+          <FileSpreadsheet size={14} className="text-blue-600 shrink-0" />
+          <span>Clearances Ledger</span>
         </button>
 
-        {/* Google Live Sheet */}
+        {/* Google Live Sheet with Google Sheets logo */}
         <button
           type="button"
           onClick={() =>
@@ -521,12 +583,14 @@ export default function HodConsiderations() {
               'info'
             )
           }
-          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          title="Synchronize with institutional Google Live Sheet"
         >
-          Google Live Sheet
+          <GoogleSheetsLogo />
+          <span>Live Sheet</span>
         </button>
 
-        {/* Export Excel */}
+        {/* Export Excel with Excel logo */}
         <button
           type="button"
           onClick={async () => {
@@ -539,12 +603,14 @@ export default function HodConsiderations() {
               window.print();
             }
           }}
-          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          title="Export spreadsheet (.xlsx)"
         >
-          Export Excel
+          <ExcelLogo />
+          <span>Export Excel</span>
         </button>
 
-        {/* CSV */}
+        {/* CSV with CSV icon */}
         <button
           type="button"
           onClick={() => {
@@ -565,49 +631,23 @@ export default function HodConsiderations() {
             link.click();
             link.remove();
           }}
-          className="px-3 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          title="Download as CSV text file"
         >
-          CSV
+          <FileText size={13} className="text-emerald-700 shrink-0" />
+          <span>CSV</span>
         </button>
 
-        {/* Print Report */}
+        {/* Print Report with Printer icon */}
         <button
           type="button"
           onClick={() => setShowPrintReportModal(true)}
-          className="px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+          title="Generate printable clearance document"
         >
-          Print Report
+          <Printer size={13} className="text-slate-700 shrink-0" />
+          <span>Print Report</span>
         </button>
-      </div>
-
-      {/* Tabs Bar with clean rounded-full pill buttons matching screenshot */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
-        {[
-          { id: 'ALL', label: 'All Requests', count: totalCount },
-          { id: 'AWAITING_HOD', label: 'Awaiting HOD Sign-off', count: awaitingCount },
-          { id: 'BYPASS_QUEUE', label: 'Direct Bypass Queue', count: bypassCount, isZap: true },
-          { id: 'LEAVES', label: 'Leave Applications', count: leavesCount },
-          { id: 'CONSIDERATIONS', label: 'Considerations', count: considerationsCount },
-          { id: 'CLEARED', label: 'Cleared & Synced', count: clearedCount },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shadow-2xs ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900'
-              }`}
-            >
-              {tab.isZap && <Zap size={13} className="text-amber-500 fill-amber-500 shrink-0" />}
-              <span>{tab.label}</span>
-              <span className="font-bold">({tab.count})</span>
-            </button>
-          );
-        })}
       </div>
 
       {/* Request Cards Ledger matching screenshot */}
@@ -660,15 +700,26 @@ export default function HodConsiderations() {
                       )}
                     </div>
 
-                    <p className="text-xs font-medium text-slate-600 mt-1 m-0 flex flex-wrap items-center gap-1.5">
-                      <span className="font-bold text-slate-900">
-                        {item.isGroup ? 'Lead: ' : ''}{studentName} ({enrollNo})
+                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50/90 border border-amber-300 text-slate-900 shadow-2xs">
+                        {item.isGroup && (
+                          <span className="text-[10px] font-black uppercase text-indigo-700 tracking-wider">
+                            ★ Lead:
+                          </span>
+                        )}
+                        {/* Highlighted Student Name */}
+                        <span className="font-black text-slate-950 bg-amber-200/90 text-amber-950 px-2 py-0.5 rounded text-xs border border-amber-300/80 shadow-2xs">
+                          {studentName}
+                        </span>
+                        <span className="font-mono text-[11px] font-bold text-slate-600">
+                          ({enrollNo})
+                        </span>
                       </span>
-                      <span className="text-slate-400">•</span>
+                      <span className="text-slate-300">•</span>
                       <span className="text-slate-400 font-mono text-[11px] truncate max-w-[280px]" title={itemIdStr}>
                         {itemIdStr}
                       </span>
-                    </p>
+                    </div>
 
                     <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mt-1.5">
                       <Calendar size={13} className="text-slate-400 shrink-0" />
@@ -678,25 +729,48 @@ export default function HodConsiderations() {
                     </div>
 
                     {Boolean(item.isGroup && item.groupMembers && item.groupMembers.length > 0) && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider">
+                      <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                        <span className="text-[10px] font-black text-indigo-900 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded-md border border-indigo-200 shadow-2xs">
                           Roster ({item.groupMembers.length}):
                         </span>
                         {item.groupMembers.map((m, idx) => {
                           const mName = m.user?.name || m.name || 'Student';
                           const mRoll = m.enrollmentNumber || m.rollNumber || '';
                           const mSec = m.section?.name || m.section?.code || '';
-                          const isLead = (m._id && item.groupLeader && String(m._id) === String(item.groupLeader._id || item.groupLeader)) || (idx === 0 && !item.groupLeader);
+                          const isLead =
+                            (m._id && item.groupLeader && String(m._id) === String(item.groupLeader._id || item.groupLeader)) ||
+                            (idx === 0 && !item.groupLeader);
                           return (
                             <span
                               key={m._id || idx}
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs shadow-2xs border transition-all ${
                                 isLead
-                                  ? 'bg-indigo-100 text-indigo-900 border-indigo-300 font-bold'
-                                  : 'bg-slate-50 text-slate-700 border-slate-200'
+                                  ? 'bg-indigo-50 border-indigo-300 text-indigo-950 ring-1 ring-indigo-200'
+                                  : 'bg-amber-50/70 border-amber-300 text-amber-950'
                               }`}
                             >
-                              {isLead ? '★ Lead: ' : ''}{mName} ({mRoll || mSec})
+                              {isLead ? (
+                                <span className="text-amber-600 font-black text-xs">★ Lead:</span>
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              )}
+                              {/* Highlighted Student Name */}
+                              <span
+                                className={`font-black px-1.5 py-0.5 rounded text-xs tracking-tight shadow-2xs ${
+                                  isLead
+                                    ? 'bg-indigo-200/90 text-indigo-950 border border-indigo-300'
+                                    : 'bg-amber-200/90 text-amber-950 border border-amber-300/80'
+                                }`}
+                              >
+                                {mName}
+                              </span>
+                              <span
+                                className={`font-mono text-[10px] font-semibold ${
+                                  isLead ? 'text-indigo-700' : 'text-slate-600'
+                                }`}
+                              >
+                                ({mRoll || mSec})
+                              </span>
                             </span>
                           );
                         })}

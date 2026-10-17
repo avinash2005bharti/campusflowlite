@@ -195,7 +195,12 @@ export const getMyLeaves = async (userId, query) => {
   const filter = { applicant: userId };
 
   if (query.status) {
-    filter.status = query.status.toUpperCase();
+    const s = query.status.toUpperCase();
+    if (s === 'APPROVED' || s === 'APPROVED_BY_HOD') {
+      filter.status = { $in: ['APPROVED', 'APPROVED_BY_HOD'] };
+    } else {
+      filter.status = s;
+    }
   }
 
   const [leaves, total] = await Promise.all([

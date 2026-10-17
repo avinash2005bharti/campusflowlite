@@ -1,68 +1,92 @@
 import React from 'react';
 import { useERP } from '../context/ERPContext.jsx';
-import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X } from 'lucide-react';
 
 export default function NotificationToast() {
   const { toasts, removeToast } = useERP();
 
   if (!toasts || toasts.length === 0) return null;
 
-  const iconMap = {
-    success: <CheckCircle2 size={18} className="text-emerald-500 shrink-0" />,
-    danger: <AlertCircle size={18} className="text-rose-500 shrink-0" />,
-    warning: <AlertTriangle size={18} className="text-amber-500 shrink-0" />,
-    info: <Info size={18} className="text-blue-500 shrink-0" />,
-  };
-
-  const borderMap = {
-    success: 'border-emerald-200 bg-emerald-50/95',
-    danger: 'border-rose-200 bg-rose-50/95',
-    warning: 'border-amber-200 bg-amber-50/95',
-    info: 'border-blue-200 bg-blue-50/95',
-  };
-
   return (
     <div
       style={{
         position: 'fixed',
-        bottom: '1.25rem',
+        top: '1.25rem',
         right: '1.25rem',
-        zIndex: 9999,
+        zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.5rem',
-        maxWidth: '360px',
+        gap: '0.625rem',
+        maxWidth: '380px',
         width: 'calc(100% - 2.5rem)',
+        pointerEvents: 'none',
       }}
+      aria-live="polite"
     >
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200 animate-slide-in ${
-            borderMap[toast.type] || borderMap.info
-          }`}
-          role="alert"
-        >
-          <div className="flex items-start gap-2.5 min-w-0">
-            {iconMap[toast.type] || iconMap.info}
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-slate-900 leading-tight">
-                {toast.title}
-              </div>
-              <div className="text-xs text-slate-600 mt-0.5 leading-normal">
-                {toast.message}
+      {toasts.map((toast) => {
+        const isRed =
+          toast.type === 'danger' ||
+          toast.type === 'error' ||
+          toast.type === 'warning' ||
+          toast.type === 'failure';
+
+        return (
+          <div
+            key={toast.id}
+            className={`pointer-events-auto flex items-start justify-between gap-3 p-3.5 rounded-xl border-2 transition-all duration-200 transform translate-y-0 opacity-100 ${
+              isRed
+                ? 'bg-[#FFF1F2] border-rose-400 text-rose-950 border-l-[6px] border-l-rose-600'
+                : 'bg-[#F0FDF4] border-emerald-400 text-emerald-950 border-l-[6px] border-l-emerald-600'
+            }`}
+            style={{
+              backgroundColor: isRed ? '#FFF1F2' : '#F0FDF4',
+              opacity: 1,
+              boxShadow: isRed
+                ? '0 20px 25px -5px rgba(225, 29, 72, 0.25), 0 8px 10px -6px rgba(225, 29, 72, 0.2)'
+                : '0 20px 25px -5px rgba(5, 150, 105, 0.25), 0 8px 10px -6px rgba(5, 150, 105, 0.2)',
+              animation: 'toastTopSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+            }}
+            role="alert"
+          >
+            <div className="flex items-start gap-2.5 min-w-0">
+              {isRed ? (
+                <AlertCircle size={20} className="text-rose-600 shrink-0 mt-0.5" />
+              ) : (
+                <CheckCircle2 size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div
+                  className={`text-xs font-black leading-tight ${
+                    isRed ? 'text-rose-950' : 'text-emerald-950'
+                  }`}
+                >
+                  {toast.title}
+                </div>
+                {toast.message && (
+                  <div
+                    className={`text-xs mt-1 leading-normal font-medium ${
+                      isRed ? 'text-rose-900' : 'text-emerald-900'
+                    }`}
+                  >
+                    {toast.message}
+                  </div>
+                )}
               </div>
             </div>
+            <button
+              onClick={() => removeToast(toast.id)}
+              className={`p-1 rounded-md shrink-0 transition-colors cursor-pointer ${
+                isRed
+                  ? 'text-rose-600 hover:text-rose-950 hover:bg-rose-200'
+                  : 'text-emerald-700 hover:text-emerald-950 hover:bg-emerald-200'
+              }`}
+              aria-label="Close notification"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <button
-            onClick={() => removeToast(toast.id)}
-            className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md shrink-0"
-            aria-label="Close notification"
-          >
-            <X size={15} />
-          </button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

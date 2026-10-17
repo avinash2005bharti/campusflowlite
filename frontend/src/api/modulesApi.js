@@ -128,12 +128,20 @@ export const masterDataApi = {
     return apiClient.patch(`/teachers/${id}`, data);
   },
 
+  deleteTeacher: async (id) => {
+    return apiClient.delete(`/teachers/${id}`);
+  },
+
   getSections: async (params = {}) => {
     return apiClient.get('/sections', { params });
   },
 
   createSection: async (data) => {
     return apiClient.post('/sections', data);
+  },
+
+  moveSectionSemester: async (id, direction) => {
+    return apiClient.post(`/sections/${id}/move-semester`, { direction });
   },
 
   getUsers: async (params = {}) => {
@@ -146,6 +154,26 @@ export const masterDataApi = {
 
   updateUser: async (id, data) => {
     return apiClient.patch(`/users/${id}`, data);
+  },
+
+  deleteUser: async (id) => {
+    return apiClient.delete(`/users/${id}`);
+  },
+
+  appointHOD: async (id) => {
+    return apiClient.post(`/users/${id}/appoint-hod`);
+  },
+
+  removeHOD: async (id) => {
+    return apiClient.post(`/users/${id}/remove-hod`);
+  },
+
+  appointTG: async (id, data = {}) => {
+    return apiClient.post(`/users/${id}/appoint-tg`, data);
+  },
+
+  removeTG: async (id) => {
+    return apiClient.post(`/users/${id}/remove-tg`);
   },
 
   resetPassword: async (id, password) => {

@@ -349,7 +349,7 @@ export const runSeed = async () => {
     groupA.students = groupAStudentIds;
     await groupA.save();
 
-    console.log('🎓 Created Students: 4 in Section B & 1 in Section A');
+    console.log('🎓 Created Real Students: Section B & Section A (Semester 5)');
 
     // 8. Consideration Requests
     if (avinashStudentDoc && avinashUserDoc) {

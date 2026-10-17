@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { considerationApi } from '../../api';
 import {
@@ -20,11 +21,27 @@ import FormalApplicationModal from '../../components/modals/FormalApplicationMod
 
 export default function StudentConsiderations() {
   const { openModal, viewAttachment, addToast } = useERP();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get('status');
+
+  const normalizeStatus = (val) => {
+    if (!val) return '';
+    const upper = val.toUpperCase();
+    if (upper === 'APPROVED' || upper === 'APPROVED_BY_HOD') return 'APPROVED_BY_HOD';
+    return upper;
+  };
+
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => normalizeStatus(urlStatus));
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [formalModalItem, setFormalModalItem] = useState(null);
+
+  useEffect(() => {
+    if (urlStatus !== null) {
+      setStatusFilter(normalizeStatus(urlStatus));
+    }
+  }, [urlStatus]);
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -118,7 +135,10 @@ export default function StudentConsiderations() {
         ].map((tab) => (
           <button
             key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
+            onClick={() => {
+              setStatusFilter(tab.value);
+              setSearchParams(tab.value ? { status: tab.value } : {});
+            }}
             className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer shadow-2xs ${
               statusFilter === tab.value
                 ? 'bg-blue-600 text-white shadow-xs'

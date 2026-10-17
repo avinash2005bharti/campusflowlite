@@ -33,11 +33,42 @@ export const updateStatus = asyncHandler(async (req, res) => {
   return sendSuccess(res, user);
 });
 
+export const deleteUser = asyncHandler(async (req, res) => {
+  const result = await usersService.deleteUser(req.params.id, req.user);
+  return sendSuccess(res, result);
+});
+
+export const appointHOD = asyncHandler(async (req, res) => {
+  const result = await usersService.appointHOD(req.params.id, req.user);
+  return sendSuccess(res, result);
+});
+
+export const removeHOD = asyncHandler(async (req, res) => {
+  const result = await usersService.removeHOD(req.params.id, req.user);
+  return sendSuccess(res, result);
+});
+
+export const appointTG = asyncHandler(async (req, res) => {
+  const result = await usersService.appointTG(req.params.id, req.body, req.user);
+  return sendSuccess(res, result);
+});
+
+export const removeTG = asyncHandler(async (req, res) => {
+  const result = await usersService.removeTG(req.params.id, req.user);
+  return sendSuccess(res, result);
+});
+
 export default {
   listUsers,
   createUser,
   getUserById,
   updateUser,
+  deleteUser,
+  appointHOD,
+  removeHOD,
+  appointTG,
+  removeTG,
   resetPassword,
   updateStatus,
 };
+

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { considerationApi, leaveApi } from '../../api';
 import {
@@ -17,12 +18,35 @@ import FormalApplicationModal from '../../components/modals/FormalApplicationMod
 
 export default function StudentMyRequests() {
   const { openModal, currentUser } = useERP();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const urlStatus = searchParams.get('status');
 
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'active' | 'completed'
+  const resolveInitialTab = () => {
+    if (urlTab === 'active' || urlTab === 'pending' || urlStatus === 'PENDING' || urlStatus === 'pending') {
+      return 'active';
+    }
+    if (urlTab === 'completed' || urlStatus === 'APPROVED' || urlStatus === 'APPROVED_BY_HOD') {
+      return 'completed';
+    }
+    return urlTab || 'all';
+  };
+
+  const [activeTab, setActiveTab] = useState(resolveInitialTab);
   const [requests, setRequests] = useState([]);
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedSanction, setSelectedSanction] = useState(null);
+
+  useEffect(() => {
+    if (urlTab === 'active' || urlTab === 'pending' || urlStatus === 'PENDING' || urlStatus === 'pending') {
+      setActiveTab('active');
+    } else if (urlTab === 'completed' || urlStatus === 'APPROVED' || urlStatus === 'APPROVED_BY_HOD') {
+      setActiveTab('completed');
+    } else if (urlTab === 'all') {
+      setActiveTab('all');
+    }
+  }, [urlTab, urlStatus]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -184,8 +208,11 @@ export default function StudentMyRequests() {
       {/* Filter Tabs */}
       <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-fit border border-slate-200">
         <button
-          onClick={() => setActiveTab('all')}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+          onClick={() => {
+            setActiveTab('all');
+            setSearchParams({});
+          }}
+          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'all'
               ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900'
@@ -194,8 +221,11 @@ export default function StudentMyRequests() {
           All ({allItems.length})
         </button>
         <button
-          onClick={() => setActiveTab('active')}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+          onClick={() => {
+            setActiveTab('active');
+            setSearchParams({ tab: 'active' });
+          }}
+          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'active'
               ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900'
@@ -204,8 +234,11 @@ export default function StudentMyRequests() {
           Active ({activeItems.length})
         </button>
         <button
-          onClick={() => setActiveTab('completed')}
-          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+          onClick={() => {
+            setActiveTab('completed');
+            setSearchParams({ tab: 'completed' });
+          }}
+          className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === 'completed'
               ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
               : 'text-slate-600 hover:text-slate-900'

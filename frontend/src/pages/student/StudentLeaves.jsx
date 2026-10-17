@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { leaveApi } from '../../api';
 import {
@@ -19,10 +20,26 @@ import WorkflowTimeline from '../../components/WorkflowTimeline.jsx';
 
 export default function StudentLeaves() {
   const { openModal, viewAttachment, addToast } = useERP();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlStatus = searchParams.get('status');
+
+  const normalizeStatus = (val) => {
+    if (!val) return '';
+    const upper = val.toUpperCase();
+    if (upper === 'APPROVED' || upper === 'APPROVED_BY_HOD') return 'APPROVED_BY_HOD';
+    return upper;
+  };
+
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(() => normalizeStatus(urlStatus));
   const [selectedLeave, setSelectedLeave] = useState(null);
+
+  useEffect(() => {
+    if (urlStatus !== null) {
+      setStatusFilter(normalizeStatus(urlStatus));
+    }
+  }, [urlStatus]);
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -111,7 +128,10 @@ export default function StudentLeaves() {
         ].map((tab) => (
           <button
             key={tab.value}
-            onClick={() => setStatusFilter(tab.value)}
+            onClick={() => {
+              setStatusFilter(tab.value);
+              setSearchParams(tab.value ? { status: tab.value } : {});
+            }}
             className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold text-center transition-all cursor-pointer shadow-2xs ${
               statusFilter === tab.value
                 ? 'bg-blue-600 text-white shadow-xs'

@@ -213,7 +213,7 @@ export function getSectionLetter(sectionObjOrStr) {
       : (sectionObjOrStr.code || sectionObjOrStr.name || '')
   ).trim().toUpperCase();
 
-  const cseMatch = str.match(/CSE[\s\-_]*([A-D])/i);
+  const cseMatch = str.match(/CSE[\s\-_]*(?:SEM\s*\d+[\s\-_]*|\d+[\s\-_]*)?([A-D])/i);
   if (cseMatch) return cseMatch[1].toUpperCase();
 
   const secMatch = str.match(/SEC(?:TION)?[\s\-_]*([A-D])/i);

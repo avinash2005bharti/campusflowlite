@@ -153,6 +153,8 @@ export const getDashboardSummary = async (user) => {
         { $sort: { _id: 1 } },
       ]),
       Student.countDocuments({}),
+      Teacher.countDocuments({}),
+      User.countDocuments({}),
     ]);
 
     return {
@@ -166,6 +168,8 @@ export const getDashboardSummary = async (user) => {
       facultyOnLeaveToday: onLeaveTodayCount,
       semesterDistribution: semesterAggregation,
       totalStudents: totalStudentsCount,
+      totalTeachers: totalTeachersCount,
+      totalUsers: totalUsersCount,
     };
   }
 

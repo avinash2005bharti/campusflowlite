@@ -30,4 +30,14 @@ router.patch(
   })
 );
 
+router.delete(
+  '/:id',
+  auth,
+  authorize('ADMIN'),
+  asyncHandler(async (req, res) => {
+    const result = await teachersService.deleteTeacher(req.params.id);
+    return sendSuccess(res, result);
+  })
+);
+
 export default router;

@@ -113,7 +113,28 @@ export const updateTeacher = async (id, updateData = {}) => {
   return teacher;
 };
 
+export const deleteTeacher = async (id) => {
+  const teacher = await Teacher.findById(id);
+  if (!teacher) {
+    const error = new Error('Faculty member not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  const userId = teacher.user;
+
+  // Deactivate mentor cohorts led by this TG
+  await MentorGroup.updateMany({ tg: id }, { isActive: false });
+
+  await Teacher.findByIdAndDelete(id);
+  if (userId) {
+    await User.findByIdAndDelete(userId);
+  }
+
+  return { success: true, message: 'Faculty member and linked account deleted successfully' };
+};
+
 export default {
   listTeachers,
   updateTeacher,
+  deleteTeacher,
 };

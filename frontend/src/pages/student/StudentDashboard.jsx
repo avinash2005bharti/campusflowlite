@@ -237,12 +237,25 @@ export default function StudentDashboard() {
           METRICS: DISPLAY ONLY LECTURES AND LEAVES (NO ON-DUTY CREDITS)
           ======================================================================= */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+        {/* Metric 1: APPROVED LEAVES -> opens approved leave history */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/student/leaves?status=APPROVED')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/student/leaves?status=APPROVED');
+            }
+          }}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99]"
+          title="Click to open approved leave history"
+        >
           <div>
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
               APPROVED LEAVES
             </span>
-            <span className="block text-2xl font-black text-slate-900 mt-0.5">
+            <span className="block text-2xl font-black text-slate-900 mt-0.5 group-hover:text-emerald-700 transition-colors">
               {approvedLeavesCount}
             </span>
             <span className="block text-xs text-slate-500 font-medium mt-0.5">
@@ -251,14 +264,27 @@ export default function StudentDashboard() {
                 : '0 Days Sanctioned'}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 flex items-center justify-center shrink-0 group-hover:bg-emerald-50 group-hover:border-emerald-300 group-hover:text-emerald-600 transition-colors">
             <ShieldCheck size={18} />
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+        {/* Metric 2: APPROVED LECTURES -> opens approved consideration history */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/student/considerations?status=APPROVED')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/student/considerations?status=APPROVED');
+            }
+          }}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between cursor-pointer hover:border-emerald-300 hover:shadow-md transition-all group active:scale-[0.99]"
+          title="Click to open approved consideration history"
+        >
           <div>
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-emerald-700 transition-colors">
               APPROVED LECTURES
             </span>
             <span className="block text-2xl font-black text-emerald-700 mt-0.5">
@@ -270,14 +296,27 @@ export default function StudentDashboard() {
                 : '0 Lectures Approved'}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-100 group-hover:border-emerald-300 transition-colors">
             <CheckCircle2 size={18} />
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+        {/* Metric 3: PENDING LECTURES -> shows the pending request list */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate('/student/requests?tab=active')}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              navigate('/student/requests?tab=active');
+            }
+          }}
+          className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between cursor-pointer hover:border-amber-300 hover:shadow-md transition-all group active:scale-[0.99]"
+          title="Click to show the pending request list"
+        >
           <div>
-            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-amber-700 transition-colors">
               PENDING LECTURES
             </span>
             <span className="block text-2xl font-black text-amber-700 mt-0.5">
@@ -289,7 +328,7 @@ export default function StudentDashboard() {
                 : 'No Pending Requests'}
             </span>
           </div>
-          <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0 group-hover:bg-amber-100 group-hover:border-amber-300 transition-colors">
             <Clock size={18} />
           </div>
         </div>

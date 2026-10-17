@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowRight, Search, ExternalLink, Users, UserCheck, GraduationCap, Phone, Mail } from 'lucide-react';
+import { X, ArrowRight, ArrowLeft, Search, ExternalLink, Users, UserCheck, GraduationCap, Phone, Mail } from 'lucide-react';
 import { masterDataApi } from '../../api';
 import { getSectionLetter } from '../../utils/constants.js';
 
@@ -9,11 +9,19 @@ export default function SectionOverviewModal({
   onClose,
   onOpenClassesCentral,
 }) {
-  const [selectedSection, setSelectedSection] = useState(initialSection);
-  const [currentSemester, setCurrentSemester] = useState(initialSemester);
+  const [selectedSection, setSelectedSection] = useState(() => getSectionLetter(initialSection) || initialSection || 'B');
+  const [currentSemester, setCurrentSemester] = useState(Number(initialSemester) || 5);
   const [students, setStudents] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (initialSemester) setCurrentSemester(Number(initialSemester));
+  }, [initialSemester]);
+
+  useEffect(() => {
+    if (initialSection) setSelectedSection(getSectionLetter(initialSection) || initialSection || 'B');
+  }, [initialSection]);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -85,18 +93,36 @@ export default function SectionOverviewModal({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <span className="text-xs font-semibold text-slate-500 mr-0.5">Current:</span>
-            <span className="px-3 py-1 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+            <span className="px-3 py-1 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200 shadow-2xs">
               Sem {currentSemester}
             </span>
+
+            {/* Move to Previous Semester button as requested in user feedback */}
             <button
-              onClick={() => setCurrentSemester(currentSemester === 5 ? 6 : 5)}
-              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              type="button"
+              onClick={() => setCurrentSemester((prev) => Math.max(1, prev - 1))}
+              disabled={currentSemester <= 1}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title={currentSemester > 1 ? `Go to Semester ${currentSemester - 1}` : 'First semester reached'}
             >
-              <span>Move to Next Semester (Sem {currentSemester === 5 ? 6 : 5})</span>
+              <ArrowLeft size={14} />
+              <span>Move to Prev Semester {currentSemester > 1 ? `(Sem ${currentSemester - 1})` : ''}</span>
+            </button>
+
+            {/* Move to Next Semester button */}
+            <button
+              type="button"
+              onClick={() => setCurrentSemester((prev) => Math.min(8, prev + 1))}
+              disabled={currentSemester >= 8}
+              className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+              title={currentSemester < 8 ? `Go to Semester ${currentSemester + 1}` : 'Last semester reached'}
+            >
+              <span>Move to Next Semester {currentSemester < 8 ? `(Sem ${currentSemester + 1})` : ''}</span>
               <ArrowRight size={14} />
             </button>
+
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 ml-1 transition-colors cursor-pointer"

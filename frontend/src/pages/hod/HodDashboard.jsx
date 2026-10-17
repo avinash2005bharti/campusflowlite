@@ -2,6 +2,7 @@ import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useERP } from '../../context/ERPContext.jsx';
 import { dashboardApi, considerationApi, leaveApi, masterDataApi, noticeApi } from '../../api';
+import { getSectionLetter } from '../../utils/constants.js';
 import {
   Calendar,
   Clock,
@@ -226,14 +227,16 @@ export default function HodDashboard() {
     }).length;
   };
 
+  const [hoveredSem, setHoveredSem] = useState(null);
+
   const visibleSections = sections
     .filter((section) => Number(section.semester) === Number(selectedSemNumber))
     .map((section) => ({ ...section, studentCount: getSectionStudentCount(section) }));
 
   const openSectionDetails = (section) => {
     setSectionModalTarget({
-      section: section.code || section.name,
-      semester: selectedSemNumber,
+      section: getSectionLetter(section) || 'B',
+      semester: Number(selectedSemNumber || section.semester || 5),
     });
     setShowSectionModal(true);
   };
@@ -292,6 +295,8 @@ export default function HodDashboard() {
       dashOffset: offset,
     };
   });
+
+  const hoveredSemData = semDistributionWithPct.find((item) => item.sem === hoveredSem);
 
   const pendingConsCount = pendingConsiderations.length;
   const pendingLeavesCount = pendingLeaves.length;
@@ -580,7 +585,7 @@ export default function HodDashboard() {
           MIDDLE-BOTTOM: Semester Distribution & Section Overview (50-50 Split)
           ======================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-stretch">
-        {/* CARD 1: Semester Distribution with 50-50 space for pie chart and legend */}
+        {/* CARD 1: Semester Distribution with interactive Pie Chart and structured representation */}
         <div className="p-5 sm:p-6 rounded-3xl bg-white border border-slate-200 shadow-2xs flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
@@ -593,68 +598,149 @@ export default function HodDashboard() {
               <button
                 type="button"
                 onClick={() => setShowClassesModal(true)}
-                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <span>View all</span>
                 <ArrowRight size={14} />
               </button>
             </div>
 
-            {/* 50-50 Space Allotment: Donut Pie Chart (50%) & Legend Grid (50%) */}
+            {/* Split layout: Interactive Donut Chart (Left) & Rich Semester Metric Cards (Right) */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-6 py-4">
-              {/* Left 50%: Donut Pie Chart with all distinct semester colors */}
-              <div className="w-full sm:w-1/2 flex items-center justify-center">
-                <div className="relative w-36 h-36 sm:w-40 sm:h-40 shrink-0 flex items-center justify-center">
-                  <svg role="img" aria-label="Semester enrollment distribution chart" className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+              {/* Left 45%: Donut Pie Chart with interactive hover & center stats */}
+              <div className="w-full sm:w-[45%] flex items-center justify-center">
+                <div className="relative w-40 h-40 sm:w-44 sm:h-44 shrink-0 flex items-center justify-center">
+                  <svg
+                    role="img"
+                    aria-label="Semester enrollment distribution chart"
+                    className="w-full h-full transform -rotate-90 drop-shadow-xs"
+                    viewBox="0 0 100 100"
+                  >
                     <circle
                       cx="50"
                       cy="50"
                       r="38"
                       fill="transparent"
                       stroke="#F1F5F9"
-                      strokeWidth="13"
+                      strokeWidth="12"
                     />
-                    {donutSlices.map((slice) => (
-                      <circle
-                        key={slice.sem}
-                        cx="50"
-                        cy="50"
-                        r="38"
-                        fill="transparent"
-                        stroke={slice.color}
-                        strokeWidth="13"
-                        strokeDasharray={slice.dashArray}
-                        strokeDashoffset={slice.dashOffset}
-                      />
-                    ))}
+                    {donutSlices.map((slice) => {
+                      const isHovered = hoveredSem === slice.sem;
+                      return (
+                        <circle
+                          key={slice.sem}
+                          cx="50"
+                          cy="50"
+                          r="38"
+                          fill="transparent"
+                          stroke={slice.color}
+                          strokeWidth={isHovered ? 15 : 12}
+                          strokeDasharray={slice.dashArray}
+                          strokeDashoffset={slice.dashOffset}
+                          className="transition-all duration-200 cursor-pointer"
+                          onMouseEnter={() => setHoveredSem(slice.sem)}
+                          onMouseLeave={() => setHoveredSem(null)}
+                          onClick={() => setSelectedSemNumber(slice.sem)}
+                        />
+                      );
+                    })}
                   </svg>
 
-                  {/* Inner center text: Real enrolled students count */}
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-                    <span className="text-2xl font-black text-slate-900 leading-none">
-                      {totalCohortStudents}
-                    </span>
-                    <span className="text-xs font-bold text-slate-500 mt-1">
-                      {totalCohortStudents === 1 ? 'Student' : 'Students'}
-                    </span>
+                  {/* Inner center text: Dynamic hover feedback or Total enrolled */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none px-2">
+                    {hoveredSemData ? (
+                      <>
+                        <span className="text-xl sm:text-2xl font-black text-slate-900 leading-none">
+                          {hoveredSemData.count}
+                        </span>
+                        <span className="text-[11px] font-bold text-blue-600 mt-1 truncate max-w-full">
+                          {hoveredSemData.label}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {hoveredSemData.pct}% of cohort
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-2xl sm:text-3xl font-black text-slate-900 leading-none tracking-tight">
+                          {totalCohortStudents}
+                        </span>
+                        <span className="text-xs font-bold text-slate-500 mt-1">
+                          {totalCohortStudents === 1 ? 'Student' : 'Students'}
+                        </span>
+                        <span className="text-[10px] font-semibold text-slate-400">
+                          Total Enrolled
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Right 50%: Legend Grid with 2 clean balanced columns */}
-              <div className="w-full sm:w-1/2 grid grid-cols-2 gap-x-3 sm:gap-x-4 gap-y-2 text-xs">
-                {semDistributionWithPct.map((item) => (
-                  <div key={item.sem} className="flex items-center justify-between py-0.5">
-                    <span className="flex items-center gap-1.5 text-slate-700 font-semibold truncate">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.dotColor}`} />
-                      {item.label}
-                    </span>
-                    <span className="font-extrabold text-slate-900 ml-1">
-                      {item.pct}%
-                    </span>
-                  </div>
-                ))}
+              {/* Right 55%: Rich structured representation of all 8 semesters */}
+              <div className="w-full sm:w-[55%] grid grid-cols-2 gap-2 text-xs">
+                {semDistributionWithPct.map((item) => {
+                  const isHovered = hoveredSem === item.sem;
+                  const isSelected = selectedSemNumber === item.sem;
+                  return (
+                    <div
+                      key={item.sem}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedSemNumber(item.sem)}
+                      onKeyDown={(e) => e.key === 'Enter' && setSelectedSemNumber(item.sem)}
+                      onMouseEnter={() => setHoveredSem(item.sem)}
+                      onMouseLeave={() => setHoveredSem(null)}
+                      title={`Click to view ${item.label} in Section Overview`}
+                      className={`p-2 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'bg-blue-50/70 border-blue-400 ring-1 ring-blue-400 shadow-2xs'
+                          : isHovered
+                          ? 'bg-slate-50 border-slate-300 shadow-2xs'
+                          : 'bg-white border-slate-100 hover:border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="flex items-center gap-1.5 font-bold text-slate-800 truncate text-[11px]">
+                          <span
+                            className="w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          {item.label}
+                        </span>
+                        <span className="px-1.5 py-0.2 rounded-md bg-slate-100 text-[10px] font-black text-slate-700">
+                          {item.pct}%
+                        </span>
+                      </div>
+
+                      <div className="flex items-baseline justify-between mt-1 text-[11px]">
+                        <span className="font-extrabold text-slate-900">
+                          {item.count}{' '}
+                          <span className="text-[10px] font-medium text-slate-400">
+                            {item.count === 1 ? 'std' : 'stds'}
+                          </span>
+                        </span>
+                      </div>
+
+                      {/* Mini visual proportional bar */}
+                      <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mt-1.5">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.max(item.pct, item.count > 0 ? 5 : 0)}%`,
+                            backgroundColor: item.color,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+
+            <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-medium">
+              <span>💡 Click any semester to view active sections</span>
+              <span className="font-bold text-slate-600">8 Semesters Active</span>
             </div>
           </div>
         </div>
@@ -676,7 +762,7 @@ export default function HodDashboard() {
                   <select
                     id="hod-semester-select"
                     aria-label="Filter sections by semester"
-                    value={selectedSemNumber}
+                    value={selectedSemNumber || ''}
                     onChange={(e) => setSelectedSemNumber(Number(e.target.value))}
                     className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 shadow-2xs focus:outline-none cursor-pointer"
                   >
@@ -690,7 +776,10 @@ export default function HodDashboard() {
 
                 <button
                   type="button"
-                  onClick={() => visibleSections[0] && openSectionDetails(visibleSections[0])}
+                  onClick={() => {
+                    const targetSec = visibleSections[0];
+                    if (targetSec) openSectionDetails(targetSec);
+                  }}
                   disabled={visibleSections.length === 0}
                   className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                 >
@@ -708,12 +797,15 @@ export default function HodDashboard() {
                   'bg-[#EFFAF3] border-[#D6F5E3] text-emerald-500',
                   'bg-[#FFF6EA] border-[#FEE8CC] text-amber-500',
                 ][index % 4];
+                const secLetter = getSectionLetter(section);
+                const displaySecCode = secLetter ? `CSE-${secLetter}` : (section.code || section.name);
+
                 return (
                   <div
                     key={section._id}
                     role="button"
                     tabIndex={0}
-                    aria-label={`View section ${section.code || section.name} details`}
+                    aria-label={`View section ${displaySecCode} details`}
                     onClick={() => openSectionDetails(section)}
                     onKeyDown={(e) => e.key === 'Enter' && openSectionDetails(section)}
                     className={`py-4 px-3 rounded-2xl border hover:border-blue-300 hover:shadow-xs transition-all cursor-pointer flex flex-col items-center justify-between text-center min-h-[165px] ${cardStyles}`}
@@ -723,7 +815,7 @@ export default function HodDashboard() {
                     </div>
                     <div className="my-1.5">
                       <span className="block text-xs sm:text-sm font-bold text-slate-800">
-                        {section.code || section.name}
+                        {displaySecCode}
                       </span>
                       <span className="block text-2xl font-black text-slate-900 leading-tight mt-1">
                         {section.studentCount}
@@ -877,8 +969,8 @@ export default function HodDashboard() {
 
         {showSectionModal && (
           <SectionOverviewModal
-            initialSection={sectionModalTarget.section}
-            initialSemester={sectionModalTarget.semester}
+            initialSection={sectionModalTarget?.section || 'B'}
+            initialSemester={sectionModalTarget?.semester || selectedSemNumber || 5}
             onClose={() => setShowSectionModal(false)}
             onOpenClassesCentral={() => {
               setShowSectionModal(false);

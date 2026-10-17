@@ -359,7 +359,12 @@ export const getStudentConsiderations = async (userId, query) => {
   };
 
   if (query.status) {
-    filter.status = query.status.toUpperCase();
+    const s = query.status.toUpperCase();
+    if (s === 'APPROVED' || s === 'APPROVED_BY_HOD') {
+      filter.status = { $in: ['APPROVED', 'APPROVED_BY_HOD'] };
+    } else {
+      filter.status = s;
+    }
   }
 
   const [rawRequests, total] = await Promise.all([

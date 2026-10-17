@@ -42,8 +42,9 @@ export default function Sidebar({ isOpen, onClose }) {
       case 'admin':
         return [
           { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-          { to: '/admin/users', label: 'User Accounts', icon: <Users size={18} /> },
+          { to: '/admin/users', label: 'Users & Sections', icon: <Users size={18} /> },
           { to: '/admin/import', label: 'Bulk Import', icon: <Database size={18} />, badge: 'Excel' },
+
           { to: '/admin/hod-leaves', label: 'HOD Leaves', icon: <Calendar size={18} /> },
           { to: '/audit', label: 'Audit Trail', icon: <Shield size={18} /> },
         ];

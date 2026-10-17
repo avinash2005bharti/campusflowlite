@@ -130,11 +130,17 @@ export const createMentorGroup = async (
       mentorGroup: { $ne: null },
     }).populate('user', 'name');
 
-    if (conflictingStudents.length > 0) {
+    if (conflictingStudents.length > 0 && !reassign) {
       const names = conflictingStudents.map((s) => s.user?.name || s.rollNumber).join(', ');
       throw ApiError.conflict(`The following student(s) already belong to an active mentor group: ${names}`);
+    } else if (conflictingStudents.length > 0 && reassign) {
+      await MentorGroup.updateMany(
+        { students: { $in: finalStudentIds } },
+        { $pull: { students: { $in: finalStudentIds } } }
+      );
     }
   }
+
 
   const group = await MentorGroup.create({
     department: department || teacher.department,

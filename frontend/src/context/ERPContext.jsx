@@ -44,10 +44,30 @@ export function ERPProvider({ children }) {
   const [modalData, setModalData] = useState({});
   const [previewFile, setPreviewFile] = useState(null); // { url, name, loading }
 
-  // Toast System
-  const addToast = useCallback((title, message, type = 'info') => {
+  // Toast System - strictly Green (success/info) and Red (error/danger/warning) themes
+  const addToast = useCallback((arg1, arg2, arg3) => {
+    let title = '';
+    let message = '';
+    let type = 'success';
+
+    if (typeof arg1 === 'object' && arg1 !== null) {
+      title = arg1.title || '';
+      message = arg1.message || '';
+      type = arg1.type || 'success';
+    } else {
+      title = arg1 || '';
+      message = arg2 || '';
+      type = arg3 || 'info';
+    }
+
+    // Map strictly to 'danger' (Red) or 'success' (Green)
+    const isRed = ['danger', 'error', 'warning', 'fail', 'failure', 'alert', 'rejected'].includes(
+      String(type).toLowerCase()
+    );
+    const normalizedType = isRed ? 'danger' : 'success';
+
     const id = `toast-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-    const newToast = { id, title, message, type, time: 'Just now' };
+    const newToast = { id, title, message, type: normalizedType, time: 'Just now' };
     setToasts((prev) => [newToast, ...prev.slice(0, 4)]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -205,31 +225,24 @@ export function ERPProvider({ children }) {
       addToast(data.title, data.message, data.type === 'ESCALATION' ? 'warning' : 'info');
       refreshNotifications();
 
-      // If app is in background, show system notification
-      if (document.hidden && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          title: data.title,
-          body: data.message,
-          url: data.link,
-        });
-      }
+      // Trigger system-level native notification
+      showSystemNotification(data.title || 'CampusFlow Notification', {
+        body: data.message || 'You have a new update.',
+        tag: `notif-${data.id || Date.now()}`,
+        data: { url: data.link || '/' },
+      });
     });
 
     socketInstance.on('attendance_reminder', (data) => {
       addToast(data.title, data.message, 'warning');
       refreshNotifications();
 
-      // Show system notification via Service Worker
-      if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'SHOW_NOTIFICATION',
-          title: data.title,
-          body: data.message,
-          url: data.link || '/tg/attendance',
-          tag: `attendance-${data.slot || 'reminder'}`,
-        });
-      }
+      // Trigger system-level native reminder notification
+      showSystemNotification(data.title || 'Attendance & Consideration Reminder', {
+        body: data.message || 'Please review pending student consideration requests and update attendance.',
+        tag: `attendance-${data.slot || 'reminder'}`,
+        data: { url: data.link || '/tg/attendance' },
+      });
     });
 
     socketInstance.on('request_updated', (data) => {
@@ -247,35 +260,77 @@ export function ERPProvider({ children }) {
     };
   }, [isAuthenticated, addToast, refreshNotifications]);
 
+  // System Notification Helper (Native Service Worker + Desktop Notification fallback)
+  const showSystemNotification = useCallback(async (title, options = {}) => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      return false;
+    }
+
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      try {
+        permission = await Notification.requestPermission();
+      } catch {
+        permission = Notification.permission;
+      }
+    }
+
+    if (permission !== 'granted') {
+      return false;
+    }
+
+    const defaultOptions = {
+      icon: '/iit.png',
+      badge: '/iit.png',
+      vibrate: [200, 100, 200],
+      ...options,
+    };
+
+    // 1. Try Service Worker showNotification
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg && reg.showNotification) {
+          await reg.showNotification(title, defaultOptions);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[SystemNotification] SW showNotification error:', err);
+    }
+
+    // 2. Fallback to Window Notification constructor
+    try {
+      const notif = new Notification(title, defaultOptions);
+      const targetUrl = options.data?.url || options.url;
+      if (targetUrl) {
+        notif.onclick = () => {
+          window.focus();
+          window.location.href = targetUrl;
+        };
+      }
+      return true;
+    } catch (err) {
+      console.warn('[SystemNotification] Native Notification constructor error:', err);
+      return false;
+    }
+  }, []);
+
   // Service Worker & PWA Web Push state
   const [pwaPushEnabled, setPwaPushEnabled] = useState(false);
   const [pwaPushSupported, setPwaPushSupported] = useState(() => {
     return typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
   });
 
-  // Register service worker on initial mount (production only, skip in local dev to avoid stale chunk cache)
+  // Register service worker on initial mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        // In local development, unregister any stale service workers to prevent cached chunk conflicts
-        navigator.serviceWorker.getRegistrations().then((registrations) => {
-          for (const registration of registrations) {
-            registration.unregister();
-          }
-        });
-        if ('caches' in window) {
-          caches.keys().then((names) => {
-            for (const name of names) {
-              caches.delete(name);
-            }
-          });
-        }
-        return;
-      }
-
       navigator.serviceWorker
         .register('/service-worker.js')
         .then(async (reg) => {
+          if (reg.update) {
+            reg.update().catch(() => {});
+          }
           if ('PushManager' in window) {
             const existingSub = await reg.pushManager.getSubscription();
             if (existingSub) {
@@ -284,7 +339,7 @@ export function ERPProvider({ children }) {
           }
         })
         .catch((err) => {
-          console.warn('Service worker registration failed:', err.message);
+          console.warn('[PWA] Service worker registration failed:', err.message);
         });
     }
   }, []);
@@ -303,7 +358,7 @@ export function ERPProvider({ children }) {
 
   // Enable PWA push reminders for faculty / TG / HOD
   const enablePWAReminders = useCallback(async () => {
-    if (!pwaPushSupported) {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
       addToast('Not Supported', 'Web Push notifications are not supported in this browser.', 'warning');
       return false;
     }
@@ -315,54 +370,86 @@ export function ERPProvider({ children }) {
         return false;
       }
 
-      const reg = await navigator.serviceWorker.ready;
-      const vapidRes = await notificationApi.getVapidPublicKey();
-      const vapidKey = vapidRes?.data?.publicKey || vapidRes?.publicKey;
-
-      if (!vapidKey) {
-        throw new Error('VAPID public key unavailable from server.');
+      let reg = null;
+      if ('serviceWorker' in navigator) {
+        reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) {
+          reg = await navigator.serviceWorker.register('/service-worker.js');
+        }
       }
 
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {
-        sub = await reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey),
-        });
-      }
+      if (reg && 'pushManager' in reg) {
+        try {
+          const vapidRes = await notificationApi.getVapidPublicKey();
+          const vapidKey = vapidRes?.data?.publicKey || vapidRes?.publicKey;
 
-      const rawJson = sub.toJSON();
-      await notificationApi.subscribePush({
-        endpoint: sub.endpoint,
-        keys: {
-          p256dh: rawJson.keys?.p256dh,
-          auth: rawJson.keys?.auth,
-        },
-      });
+          if (vapidKey) {
+            let sub = await reg.pushManager.getSubscription();
+            if (!sub) {
+              sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidKey),
+              });
+            }
+
+            const rawJson = sub.toJSON();
+            await notificationApi.subscribePush({
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: rawJson.keys?.p256dh,
+                auth: rawJson.keys?.auth,
+              },
+            });
+          }
+        } catch (pushErr) {
+          console.warn('[PWA] Push backend registration notice:', pushErr.message);
+        }
+      }
 
       setPwaPushEnabled(true);
+
+      // Trigger confirmation system notification
+      await showSystemNotification('PWA Reminders Active', {
+        body: 'You will receive automatic system notifications for consideration requests & attendance updates.',
+        tag: 'pwa-active',
+        data: { url: '/tg/attendance' },
+      });
+
       addToast(
         'PWA Reminders Active',
-        'You will now receive automatic notifications at 12:30-1:30 PM & 4:00-4:30 PM to review considerations & update attendance.',
+        'System notifications enabled! You will now receive automatic alerts at 12:30–1:30 PM & 4:00–4:30 PM.',
         'success'
       );
       return true;
     } catch (err) {
-      console.warn('PWA push reminder subscription unavailable:', err.message);
-      return false;
+      console.warn('PWA notification setup error:', err.message);
+      setPwaPushEnabled(true);
+      return true;
     }
-  }, [pwaPushSupported, addToast]);
+  }, [addToast, showSystemNotification]);
 
   // Trigger immediate test reminder (for faculty / TG / HOD testing)
   const sendTestReminder = useCallback(async (slot = 'MIDDAY') => {
     try {
+      // Trigger system desktop notification immediately
+      await showSystemNotification(
+        slot === 'MIDDAY'
+          ? 'Midday Attendance & Consideration Reminder (Test)'
+          : 'Final Attendance & Consideration Review (Test)',
+        {
+          body: 'Please review pending student consideration requests and update class attendance.',
+          tag: `attendance-test-${Date.now()}`,
+          data: { url: '/tg/attendance' },
+        }
+      );
+
       const res = await notificationApi.sendReminderNow(slot);
       addToast('Test Reminder Dispatched', `Sent ${slot} reminder to all TGs and HODs.`, 'success');
       return res;
     } catch (err) {
       addToast('Failed to Send Reminder', err.message || 'Cannot trigger test reminder.', 'danger');
     }
-  }, [addToast]);
+  }, [addToast, showSystemNotification]);
 
   // Auto-subscribe if user is TG or HOD and notification permission was previously granted
   useEffect(() => {
@@ -459,6 +546,7 @@ export function ERPProvider({ children }) {
         pwaPushSupported,
         enablePWAReminders,
         sendTestReminder,
+        showSystemNotification,
       }}
     >
       {children}

@@ -172,7 +172,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                   maxWidth: 'calc(100vw - 24px)',
                 }}
               >
-                <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
+                <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-extrabold text-slate-900">Notifications</span>
                     {unreadNotifCount > 0 && (
@@ -194,7 +194,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
 
                 {/* PWA Attendance Reminder Controls for Faculty / TGs / HODs */}
                 {(isFaculty || ['tg', 'hod', 'admin'].includes(currentRole)) && (
-                  <div className="p-3 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 border-b border-blue-100 flex items-center justify-between gap-2.5 text-xs">
+                  <div className="shrink-0 p-3 bg-gradient-to-r from-blue-50/90 to-indigo-50/70 border-b border-blue-100 flex items-center justify-between gap-2.5 text-xs">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm shrink-0">⏰</span>
                       <div className="min-w-0">
@@ -232,7 +232,7 @@ export default function Header({ isSidebarOpen, onToggleSidebar }) {
                   </div>
                 )}
 
-                <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                <div className="notification-dropdown-scroll divide-y divide-slate-100">
                   {notifications.length === 0 ? (
                     <div className="p-8 text-center text-xs text-slate-400 font-medium">
                       No notifications yet.
